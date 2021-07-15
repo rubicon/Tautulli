@@ -197,11 +197,14 @@ class Export(object):
                 'guids': {
                     'id': None
                 },
+                'hasPreviewThumbnails': None,
                 'key': None,
                 'labels': {
                     'id': None,
                     'tag': None
                 },
+                'languageOverride': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
@@ -238,6 +241,7 @@ class Export(object):
                         'exists': None,
                         'file': None,
                         'has64bitOffsets': None,
+                        'hasPreviewThumbnails': None,
                         'hasThumbnail': None,
                         'id': None,
                         'indexes': None,
@@ -374,6 +378,7 @@ class Export(object):
                 'titleSort': None,
                 'type': None,
                 'updatedAt': helpers.datetime_to_iso,
+                'useOriginalTitle': None,
                 'userRating': None,
                 'viewCount': None,
                 'viewOffset': None,
@@ -391,7 +396,12 @@ class Export(object):
                 'art': None,
                 'artBlurHash': None,
                 'artFile': lambda o: self.get_image(o, 'art'),
+                'audienceRating': None,
+                'audienceRatingImage': None,
+                'autoDeletionItemPolicyUnwatchedLibrary': None,
+                'autoDeletionItemPolicyWatchedLibrary': None,
                 'banner': None,
+                'bannerFile': lambda o: self.get_image(o, 'banner'),
                 'childCount': None,
                 'collections': {
                     'id': None,
@@ -400,28 +410,37 @@ class Export(object):
                 'contentRating': None,
                 'duration': None,
                 'durationHuman': lambda o: helpers.human_duration(getattr(o, 'duration', 0)),
+                'episodeSort': None,
                 'fields': {
                     'name': None,
                     'locked': None
                 },
+                'flattenSeasons': None,
                 'genres': {
                     'id': None,
                     'tag': None
                 },
                 'guid': None,
+                'guids': {
+                    'id': None
+                },
                 'index': None,
                 'key': None,
                 'labels': {
                     'id': None,
                     'tag': None
                 },
+                'languageOverride': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'leafCount': None,
                 'librarySectionID': None,
                 'librarySectionKey': None,
                 'librarySectionTitle': None,
                 'locations': None,
+                'network': None,
                 'originallyAvailableAt': partial(helpers.datetime_to_iso, to_date=True),
+                'originalTitle': None,
                 'rating': None,
                 'ratingKey': None,
                 'roles': {
@@ -430,8 +449,10 @@ class Export(object):
                     'role': None,
                     'thumb': None
                 },
+                'showOrdering': None,
                 'studio': None,
                 'summary': None,
+                'tagline': None,
                 'theme': None,
                 'thumb': None,
                 'thumbBlurHash': None,
@@ -440,6 +461,7 @@ class Export(object):
                 'titleSort': None,
                 'type': None,
                 'updatedAt': helpers.datetime_to_iso,
+                'useOriginalTitle': None,
                 'userRating': None,
                 'viewCount': None,
                 'viewedLeafCount': None,
@@ -454,13 +476,21 @@ class Export(object):
                 'art': None,
                 'artBlurHash': None,
                 'artFile': lambda o: self.get_image(o, 'art'),
+                'collections': {
+                    'id': None,
+                    'tag': None
+                },
                 'fields': {
                     'name': None,
                     'locked': None
                 },
                 'guid': None,
+                'guids': {
+                    'id': None
+                },
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'leafCount': None,
                 'librarySectionID': None,
@@ -470,10 +500,12 @@ class Export(object):
                 'parentIndex': None,
                 'parentKey': None,
                 'parentRatingKey': None,
+                'parentStudio': None,
                 'parentTheme': None,
                 'parentThumb': None,
                 'parentTitle': None,
                 'ratingKey': None,
+                'seasonNumber': None,
                 'summary': None,
                 'thumb': None,
                 'thumbBlurHash': None,
@@ -485,6 +517,7 @@ class Export(object):
                 'userRating': None,
                 'viewCount': None,
                 'viewedLeafCount': None,
+                'year': None,
                 'episodes': lambda e: self.export_obj(e)
             }
             return _season_attrs
@@ -495,6 +528,8 @@ class Export(object):
                 'art': None,
                 'artBlurHash': None,
                 'artFile': lambda o: self.get_image(o, 'art'),
+                'audienceRating': None,
+                'audienceRatingImage': None,
                 'chapters': {
                     'id': None,
                     'tag': None,
@@ -504,6 +539,10 @@ class Export(object):
                     'thumb': None
                 },
                 'chapterSource': None,
+                'collections': {
+                    'id': None,
+                    'tag': None
+                },
                 'contentRating': None,
                 'directors': {
                     'id': None,
@@ -511,6 +550,7 @@ class Export(object):
                 },
                 'duration': None,
                 'durationHuman': lambda o: helpers.human_duration(getattr(o, 'duration', 0)),
+                'episodeNumber': None,
                 'fields': {
                     'name': None,
                     'locked': None
@@ -523,9 +563,14 @@ class Export(object):
                 'grandparentThumb': None,
                 'grandparentTitle': None,
                 'guid': None,
+                'guids': {
+                    'id': None
+                },
                 'hasIntroMarker': None,
+                'hasPreviewThumbnails': None,
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
@@ -567,6 +612,7 @@ class Export(object):
                         'exists': None,
                         'file': None,
                         'has64bitOffsets': None,
+                        'hasPreviewThumbnails': None,
                         'hasThumbnail': None,
                         'id': None,
                         'indexes': None,
@@ -685,8 +731,11 @@ class Export(object):
                 'parentRatingKey': None,
                 'parentThumb': None,
                 'parentTitle': None,
+                'parentYear': None,
                 'rating': None,
                 'ratingKey': None,
+                'seasonEpisode': None,
+                'seasonNumber': None,
                 'summary': None,
                 'thumb': None,
                 'thumbBlurHash': None,
@@ -709,6 +758,7 @@ class Export(object):
         def artist_attrs():
             _artist_attrs = {
                 'addedAt': helpers.datetime_to_iso,
+                'albumSort': None,
                 'art': None,
                 'artBlurHash': None,
                 'artFile': lambda o: self.get_image(o, 'art'),
@@ -731,6 +781,7 @@ class Export(object):
                 'guid': None,
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
@@ -789,6 +840,7 @@ class Export(object):
                     'id': None,
                     'tag': None
                 },
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'leafCount': None,
                 'librarySectionID': None,
@@ -834,6 +886,10 @@ class Export(object):
                 'art': None,
                 'artBlurHash': None,
                 'chapterSource': None,
+                'collections': {
+                    'id': None,
+                    'tag': None
+                },
                 'duration': None,
                 'durationHuman': lambda o: helpers.human_duration(getattr(o, 'duration', 0)),
                 'fields': {
@@ -849,6 +905,7 @@ class Export(object):
                 'guid': None,
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'lastViewedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
@@ -952,6 +1009,7 @@ class Export(object):
                 'thumbBlurHash': None,
                 'title': None,
                 'titleSort': None,
+                'trackNumber': None,
                 'type': None,
                 'updatedAt': helpers.datetime_to_iso,
                 'userRating': None,
@@ -973,6 +1031,7 @@ class Export(object):
                 'guid': None,
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
                 'librarySectionTitle': None,
@@ -1002,6 +1061,7 @@ class Export(object):
                 'guid': None,
                 'index': None,
                 'key': None,
+                'lastRatedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
                 'librarySectionTitle': None,
@@ -1020,6 +1080,7 @@ class Export(object):
                 'titleSort': None,
                 'type': None,
                 'updatedAt': helpers.datetime_to_iso,
+                'userRating': None,
                 'year': None,
                 'media': {
                     'aperture': None,
@@ -1073,6 +1134,7 @@ class Export(object):
                     'id': None,
                     'tag': None
                 },
+                'lastRatedAt': helpers.datetime_to_iso,
                 'librarySectionID': None,
                 'librarySectionKey': None,
                 'librarySectionTitle': None,
@@ -1088,6 +1150,7 @@ class Export(object):
                 'titleSort': None,
                 'type': None,
                 'updatedAt': helpers.datetime_to_iso,
+                'userRating': None,
                 'items': lambda e: self.export_obj(e)
             }
             return _collection_attrs
@@ -1096,9 +1159,11 @@ class Export(object):
             _playlist_attrs = {
                 'addedAt': helpers.datetime_to_iso,
                 'composite': None,
+                'content': None,
                 'duration': None,
                 'durationHuman': lambda o: helpers.human_duration(getattr(o, 'duration', 0)),
                 'guid': None,
+                'icon': None,
                 'key': None,
                 'leafCount': None,
                 'playlistType': None,
@@ -1151,7 +1216,7 @@ class Export(object):
                 3: [
                     'art', 'thumb', 'key', 'chapterSource',
                     'chapters.tag', 'chapters.index', 'chapters.start', 'chapters.end', 'chapters.thumb',
-                    'updatedAt', 'lastViewedAt', 'viewCount'
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt', 'hasPreviewThumbnails'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
             }
@@ -1166,7 +1231,8 @@ class Export(object):
                     'media.parts.file', 'media.parts.duration',
                     'media.parts.container', 'media.parts.indexes', 'media.parts.size', 'media.parts.sizeHuman',
                     'media.parts.audioProfile', 'media.parts.videoProfile',
-                    'media.parts.optimizedForStreaming', 'media.parts.deepAnalysisVersion'
+                    'media.parts.optimizedForStreaming', 'media.parts.deepAnalysisVersion',
+                    'media.parts.hasPreviewThumbnails'
                 ],
                 3: [
                     'media.parts.videoStreams.codec', 'media.parts.videoStreams.bitrate',
@@ -1201,19 +1267,19 @@ class Export(object):
             _media_type = 'show'
             _metadata_levels = {
                 1: [
-                    'ratingKey', 'title', 'titleSort', 'originallyAvailableAt', 'year', 'addedAt',
-                    'rating', 'userRating', 'contentRating',
-                    'studio', 'summary', 'guid', 'duration', 'durationHuman', 'type', 'childCount',
+                    'ratingKey', 'title', 'titleSort', 'originallyAvailableAt', 'originalTitle', 'year', 'addedAt',
+                    'rating', 'audienceRating', 'audienceRatingImage', 'userRating', 'contentRating', 'network',
+                    'studio', 'tagline', 'summary', 'guid', 'duration', 'durationHuman', 'type', 'childCount',
                     'seasons'
                 ],
                 2: [
                     'roles.tag', 'roles.role',
                     'genres.tag', 'collections.tag', 'labels.tag',
-                    'fields.name', 'fields.locked'
+                    'fields.name', 'fields.locked', 'guids.id'
                 ],
                 3: [
                     'art', 'thumb', 'banner', 'theme', 'key',
-                    'updatedAt', 'lastViewedAt', 'viewCount'
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
             }
@@ -1224,18 +1290,19 @@ class Export(object):
             _media_type = 'season'
             _metadata_levels = {
                 1: [
-                    'ratingKey', 'title', 'titleSort', 'addedAt',
+                    'ratingKey', 'title', 'titleSort', 'addedAt', 'year',
                     'userRating',
-                    'summary', 'guid', 'type', 'index',
+                    'summary', 'guid', 'type', 'seasonNumber',
                     'parentTitle', 'parentRatingKey', 'parentGuid',
                     'episodes'
                 ],
                 2: [
-                    'fields.name', 'fields.locked'
+                    'collections.tag',
+                    'fields.name', 'fields.locked', 'guids.id'
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt', 'lastViewedAt', 'viewCount',
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt',
                     'parentKey', 'parentTheme', 'parentThumb'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
@@ -1248,20 +1315,20 @@ class Export(object):
             _metadata_levels = {
                 1: [
                     'ratingKey', 'title', 'titleSort', 'originallyAvailableAt', 'year', 'addedAt',
-                    'rating', 'userRating', 'contentRating',
-                    'summary', 'guid', 'duration', 'durationHuman', 'type', 'index',
-                    'parentTitle', 'parentRatingKey', 'parentGuid', 'parentIndex',
+                    'rating', 'audienceRating', 'audienceRatingImage', 'userRating', 'contentRating',
+                    'summary', 'guid', 'duration', 'durationHuman', 'type', 'episodeNumber', 'seasonEpisode',
+                    'parentTitle', 'parentRatingKey', 'parentGuid', 'parentYear', 'seasonNumber',
                     'grandparentTitle', 'grandparentRatingKey', 'grandparentGuid', 'hasIntroMarker'
                 ],
                 2: [
-                    'directors.tag', 'writers.tag',
-                    'fields.name', 'fields.locked',
+                    'collections.tag', 'directors.tag', 'writers.tag',
+                    'fields.name', 'fields.locked', 'guids.id',
                     'markers.type', 'markers.start', 'markers.end'
                 ],
                 3: [
                     'art', 'thumb', 'key', 'chapterSource',
                     'chapters.tag', 'chapters.index', 'chapters.start', 'chapters.end', 'chapters.thumb',
-                    'updatedAt', 'lastViewedAt', 'viewCount',
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt', 'hasPreviewThumbnails',
                     'parentThumb', 'parentKey',
                     'grandparentArt', 'grandparentThumb', 'grandparentTheme', 'grandparentKey'
                 ],
@@ -1278,7 +1345,8 @@ class Export(object):
                     'media.parts.file', 'media.parts.duration',
                     'media.parts.container', 'media.parts.indexes', 'media.parts.size', 'media.parts.sizeHuman',
                     'media.parts.audioProfile', 'media.parts.videoProfile',
-                    'media.parts.optimizedForStreaming', 'media.parts.deepAnalysisVersion'
+                    'media.parts.optimizedForStreaming', 'media.parts.deepAnalysisVersion',
+                    'media.parts.hasPreviewThumbnails'
                 ],
                 3: [
                     'media.parts.videoStreams.codec', 'media.parts.videoStreams.bitrate',
@@ -1324,7 +1392,7 @@ class Export(object):
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt', 'lastViewedAt', 'viewCount'
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
             }
@@ -1347,7 +1415,7 @@ class Export(object):
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt', 'lastViewedAt', 'viewCount',
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt',
                     'parentKey', 'parentThumb'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
@@ -1361,17 +1429,17 @@ class Export(object):
                 1: [
                     'ratingKey', 'title', 'titleSort', 'originalTitle', 'year', 'addedAt',
                     'userRating', 'ratingCount',
-                    'summary', 'guid', 'duration', 'durationHuman', 'type', 'index',
+                    'summary', 'guid', 'duration', 'durationHuman', 'type', 'trackNumber',
                     'parentTitle', 'parentRatingKey', 'parentGuid', 'parentIndex',
                     'grandparentTitle', 'grandparentRatingKey', 'grandparentGuid'
                 ],
                 2: [
-                    'moods.tag',
+                    'collections.tag', 'moods.tag',
                     'fields.name', 'fields.locked'
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt', 'lastViewedAt', 'viewCount',
+                    'updatedAt', 'lastViewedAt', 'viewCount', 'lastRatedAt',
                     'parentThumb', 'parentKey',
                     'grandparentArt', 'grandparentThumb', 'grandparentKey'
                 ],
@@ -1426,7 +1494,7 @@ class Export(object):
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt'
+                    'updatedAt', 'lastRatedAt'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
             }
@@ -1438,7 +1506,7 @@ class Export(object):
             _metadata_levels = {
                 1: [
                     'ratingKey', 'title', 'titleSort', 'year', 'originallyAvailableAt', 'addedAt',
-                    'summary', 'guid', 'type', 'index',
+                    'summary', 'guid', 'type', 'index', 'userRating',
                     'parentTitle', 'parentRatingKey', 'parentGuid', 'parentIndex',
                     'createdAtAccuracy', 'createdAtTZOffset'
                 ],
@@ -1447,7 +1515,7 @@ class Export(object):
                 ],
                 3: [
                     'thumb', 'key',
-                    'updatedAt',
+                    'updatedAt', 'lastRatedAt',
                     'parentThumb', 'parentKey'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
@@ -1475,7 +1543,7 @@ class Export(object):
             _metadata_levels = {
                 1: [
                     'ratingKey', 'title', 'titleSort', 'minYear', 'maxYear', 'addedAt',
-                    'contentRating',
+                    'contentRating', 'userRating',
                     'summary', 'guid', 'type', 'subtype', 'childCount',
                     'collectionMode', 'collectionSort',
                     'items'
@@ -1486,7 +1554,7 @@ class Export(object):
                 ],
                 3: [
                     'art', 'thumb', 'key',
-                    'updatedAt'
+                    'updatedAt', 'lastRatedAt'
                 ],
                 9: self._get_all_metadata_attrs(_media_type)
             }
@@ -1598,7 +1666,7 @@ class Export(object):
         else:
             plex_token = plexpy.CONFIG.PMS_TOKEN
 
-        plex = Plex(plexpy.CONFIG.PMS_URL, plex_token)
+        plex = Plex(token=plex_token)
 
         if self.rating_key:
             logger.debug(
@@ -1627,7 +1695,7 @@ class Export(object):
                 self.user_id, self.metadata_level, self.media_info_level,
                 self.thumb_level, self.art_level, self.export_type, self.file_format)
 
-            self.obj = plex.plex
+            self.obj = plex.PlexServer
             self.media_type = self.export_type
 
             self.obj_title = user_info['username']
@@ -1640,7 +1708,7 @@ class Export(object):
                 self.section_id, self.metadata_level, self.media_info_level,
                 self.thumb_level, self.art_level, self.export_type, self.file_format)
 
-            self.obj = plex.get_library(str(self.section_id))
+            self.obj = plex.get_library(self.section_id)
             if self.export_type == 'all':
                 self.media_type = self.obj.type
             else:
@@ -2079,6 +2147,8 @@ class Export(object):
             image_url = item.thumbUrl
         elif image == 'art':
             image_url = item.artUrl
+        elif image == 'banner':
+            image_url = item.bannerUrl
 
         if not image_url:
             return

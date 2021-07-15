@@ -44,7 +44,7 @@ function initConfigCheckbox(elem, toggleElem, reverse) {
     toggleElem = (toggleElem === undefined) ? null : toggleElem;
     reverse = (reverse === undefined) ? false : reverse;
     var config = toggleElem ? $(toggleElem) : $(elem).closest('div').next();
-    config.css('overflow', 'hidden');
+    config.addClass('hidden-settings');
     if ($(elem).is(":checked")) {
         config.toggle(!reverse);
     } else {
@@ -71,8 +71,9 @@ function refreshTab() {
 function showMsg(msg, loader, timeout, ms, error) {
     var feedback = $("#ajaxMsg");
     var update = $("#updatebar");
-    if (update.is(":visible")) {
-        var height = update.height() + 35;
+    var token_error = $("#token_error_bar");
+    if (update.is(":visible") || token_error.is(":visible")) {
+        var height = (update.is(":visible") ? update.height() : 0) + (token_error.is(":visible") ? token_error.height() : 0) + 35;
         feedback.css("bottom", height + "px");
     } else {
         feedback.removeAttr("style");
@@ -131,8 +132,9 @@ function doAjaxCall(url, elem, reload, form, showMsg, callback) {
     // Set Message
     var feedback = (showMsg) ? $("#ajaxMsg") : $();
     var update = $("#updatebar");
-    if (update.is(":visible")) {
-        var height = update.height() + 35;
+    var token_error = $("#token_error_bar");
+    if (update.is(":visible") || token_error.is(":visible")) {
+        var height = (update.is(":visible") ? update.height() : 0) + (token_error.is(":visible") ? token_error.height() : 0) + 35;
         feedback.css("bottom", height + "px");
     } else {
         feedback.removeAttr("style");
@@ -268,35 +270,12 @@ function resetFilters(text) {
     }
 }
 
-$.cachedScript = function (url) {
-    return $.ajax({
-        dataType: "script",
-        cache: true,
-        url: url
-    });
-};
-
 function isPrivateIP(ip_address) {
     var defer = $.Deferred();
 
     if (ipaddr.isValid(ip_address)) {
         var addr = ipaddr.process(ip_address);
-
-        var rangeList = [];
-        if (addr.kind() === 'ipv4') {
-            rangeList = [
-                ipaddr.parseCIDR('127.0.0.0/8'),
-                ipaddr.parseCIDR('10.0.0.0/8'),
-                ipaddr.parseCIDR('172.16.0.0/12'),
-                ipaddr.parseCIDR('192.168.0.0/16')
-            ];
-        } else {
-            rangeList = [
-                ipaddr.parseCIDR('fd00::/8')
-            ];
-        }
-
-        if (ipaddr.subnetMatch(addr, rangeList, -1) >= 0) {
+        if (addr.range() === 'loopback' || addr.range() === 'private' || addr.range() === 'linkLocal') {
             defer.resolve();
         } else {
             defer.reject();
@@ -309,25 +288,23 @@ function isPrivateIP(ip_address) {
 }
 
 function humanTime(seconds) {
-    var text;
-    if (seconds >= 86400) {
-        text = '<h3>' + Math.floor(moment.duration(seconds, 'seconds').asDays()) + '</h3><p> days</p>' + '<h3>' +
-            Math.floor(moment.duration((seconds % 86400), 'seconds').asHours()) + '</h3><p> hrs</p>' + '<h3>' +
-            Math.floor(moment.duration(((seconds % 86400) % 3600), 'seconds').asMinutes()) + '</h3><p> mins</p>';
-        return text;
-    } else if (seconds >= 3600) {
-        text = '<h3>' + Math.floor(moment.duration((seconds % 86400), 'seconds').asHours()) + '</h3><p> hrs</p>' +
-            '<h3>' + Math.floor(moment.duration(((seconds % 86400) % 3600), 'seconds').asMinutes()) +
-            '</h3><p> mins</p>';
-        return text;
-    } else if (seconds >= 60) {
-        text = '<h3>' + Math.floor(moment.duration(((seconds % 86400) % 3600), 'seconds').asMinutes()) +
-            '</h3><p> mins</p>';
-        return text;
+    var d = Math.floor(moment.duration(seconds, 'seconds').asDays());
+    var h = Math.floor(moment.duration((seconds % 86400), 'seconds').asHours());
+    var m = Math.round(moment.duration(((seconds % 86400) % 3600), 'seconds').asMinutes());
+
+    var text = '';
+    if (d > 0) {
+        text = '<h3>' + d + '</h3><p> day' + ((d > 1) ? 's' : '') + '</p>'
+             + '<h3>' + h + '</h3><p> hr' + ((h > 1) ? 's' : '') + '</p>'
+             + '<h3>' + m + '</h3><p> min' + ((m > 1) ? 's' : '') + '</p>';
+    } else if (h > 0) {
+        text = '<h3>' + h + '</h3><p> hr' + ((h > 1) ? 's' : '') + '</p>'
+             + '<h3>' + m + '</h3><p> min' + ((m > 1) ? 's' : '') + '</p>';
     } else {
-        text = '<h3>0</h3><p> mins</p>';
-        return text;
+        text = '<h3>' + m + '</h3><p> min' + ((m > 1) ? 's' : '') + '</p>';
     }
+
+    return text
 }
 
 String.prototype.toProperCase = function () {
@@ -516,16 +493,19 @@ $('*').on('click', '.refresh_pms_image', function (e) {
     pms_proxy_url = /^url\((['"]?)(.*)\1\)$/.exec(pms_proxy_url);
     pms_proxy_url = pms_proxy_url ? pms_proxy_url[2] : ""; // If matched, retrieve url, otherwise ""
 
-    if (pms_proxy_url.indexOf('pms_image_proxy') == -1) {
+    if (pms_proxy_url.indexOf('pms_image_proxy') === -1) {
         console.log('PMS image proxy url not found.');
     } else {
-        if (pms_proxy_url.indexOf('refresh=true') > -1) {
-            pms_proxy_url = pms_proxy_url.replace("&refresh=true", "");
-            background_div.css('background-image', 'url(' + pms_proxy_url + ')');
-            background_div.css('background-image', 'url(' + pms_proxy_url + '&refresh=true)');
-        } else {
-            background_div.css('background-image', 'url(' + pms_proxy_url + '&refresh=true)');
-        }
+        background_div.css('background-image', 'none')
+        $.ajax({
+            url: pms_proxy_url,
+            headers: {
+                'Cache-Control': 'no-cache'
+            },
+            success: function () {
+                background_div.css('background-image', 'url(' + pms_proxy_url + ')');
+            }
+        });
     }
 });
 
@@ -866,3 +846,83 @@ MEDIA_TYPE_HEADERS = {
     'audio': 'Tracks',
     'photo': 'Photos'
 }
+
+function short_season(title) {
+    if (title.startsWith('Season ') && /^\d+$/.test(title.substring(7))) {
+        return 'S' + title.substring(7)
+    }
+    return title
+}
+
+function loadAllBlurHash() {
+    $('[data-blurhash]').each(function() {
+        const elem = $(this);
+        const src = elem.data('blurhash');
+        loadBlurHash(elem, src);
+    });
+}
+
+function loadBlurHash(elem, src) {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+        const imgData = blurhash.getImageData(img);
+
+        blurhash
+            .encodePromise(imgData, img.width, img.height, 4, 4)
+            .then(hash => {
+                return blurhash.decodePromise(
+                    hash,
+                    img.width,
+                    img.height
+                );
+            })
+            .then(blurhashImgData => {
+                const imgObject = blurhash.getImageDataAsImage(
+                    blurhashImgData,
+                    img.width,
+                    img.height,
+                    (event, imgObject) => {
+                        elem.css('background-image', 'url(' + imgObject.src + ')')
+                    }
+                );
+            });
+    }
+}
+
+function _toggleRevealToken(elem, click) {
+    var input = elem.parent().siblings('input');
+    if ((input.prop('type') === 'password' && click) || !input.val()) {
+        input.prop('type', 'text');
+        elem.children('.fa').removeClass('fa-eye-slash').addClass('fa-eye');
+    } else {
+        input.prop('type', 'password');
+        elem.children('.fa').removeClass('fa-eye').addClass('fa-eye-slash');
+    }
+}
+function toggleRevealTokens() {
+    $('.reveal-token').each(function () {
+        _toggleRevealToken($(this));
+    });
+}
+
+$('body').on('click', '.reveal-token', function() {
+    _toggleRevealToken($(this), true);
+});
+
+// https://stackoverflow.com/a/57414592
+// prevent modal close when click starts in modal and ends on backdrop
+$(document).on('mousedown', '.modal', function(e){
+    window.clickStartedInModal = $(e.target).is('.modal-dialog *');
+});
+$(document).on('mouseup', '.modal', function(e){
+    if(!$(e.target).is('.modal-dialog *') && window.clickStartedInModal) {
+        window.preventModalClose = true;
+    }
+});
+$('.modal').on('hide.bs.modal', function (e) {
+    if(window.preventModalClose){
+        window.preventModalClose = false;
+        return false;
+    }
+});

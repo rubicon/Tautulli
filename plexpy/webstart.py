@@ -88,7 +88,7 @@ def initialize(options):
         'server.socket_port': options['http_port'],
         'server.socket_host': options['http_host'],
         'environment': options['http_environment'],
-        'server.thread_pool': 10,
+        'server.thread_pool': plexpy.CONFIG.HTTP_THREAD_POOL,
         'server.max_request_body_size': 1073741824,
         'server.socket_timeout': 60,
         'tools.encode.on': True,
@@ -135,6 +135,7 @@ def initialize(options):
     else:
         plexpy.HTTP_ROOT = options['http_root'] = '/'
 
+    logger.info("Tautulli WebStart :: Thread Pool Size: %d.", plexpy.CONFIG.HTTP_THREAD_POOL)
     cherrypy.config.update(options_dict)
 
     conf = {
@@ -225,20 +226,19 @@ def initialize(options):
             'tools.sessions.on': False,
             'tools.auth.on': False
         },
-        #'/pms_image_proxy': {
-        #    'tools.staticdir.on': True,
-        #    'tools.staticdir.dir': os.path.join(plexpy.CONFIG.CACHE_DIR, 'images'),
-        #    'tools.caching.on': True,
-        #    'tools.caching.force': True,
-        #    'tools.caching.delay': 0,
-        #    'tools.expires.on': True,
-        #    'tools.expires.secs': 60 * 60 * 24 * 30,  # 30 days
-        #    'tools.auth.on': False,
-        #    'tools.sessions.on': False
-        #},
+        '/pms_image_proxy': {
+           'tools.caching.on': True,
+           'tools.caching.force': True,
+           'tools.caching.delay': 0,
+           'tools.expires.on': True,
+           'tools.expires.secs': 60 * 60 * 24 * 30,  # 30 days
+           'tools.auth.on': False,
+           'tools.sessions.on': False
+        },
         '/favicon.ico': {
             'tools.staticfile.on': True,
-            'tools.staticfile.filename': os.path.abspath(os.path.join(plexpy.PROG_DIR, 'data/interfaces/default/images/favicon/favicon.ico')),
+            'tools.staticfile.filename': os.path.abspath(os.path.join(
+                plexpy.PROG_DIR, 'data/interfaces/default/images/favicon/favicon.ico')),
             'tools.caching.on': True,
             'tools.caching.force': True,
             'tools.caching.delay': 0,

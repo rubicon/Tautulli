@@ -63,7 +63,8 @@ DEFAULT_IMAGES = {
     'art': DEFAULT_ART,
     'poster-live': DEFAULT_LIVE_TV_POSTER_THUMB,
     'art-live': DEFAULT_LIVE_TV_ART,
-    'art-live-full': DEFAULT_LIVE_TV_ART_FULL
+    'art-live-full': DEFAULT_LIVE_TV_ART_FULL,
+    'user': DEFAULT_USER_THUMB
 }
 
 MEDIA_TYPE_HEADERS = {
@@ -77,6 +78,27 @@ MEDIA_TYPE_HEADERS = {
     'video': 'Videos',
     'audio': 'Tracks',
     'photo': 'Photos'
+}
+
+MEDIA_TYPE_VALUES = {
+    1: 'movie',
+    2: 'show',
+    3: 'season',
+    4: 'episode',
+    5: 'trailer',
+    6: 'comic',
+    7: 'person',
+    8: 'artist',
+    9: 'album',
+    10: 'track',
+    11: 'picture',
+    12: 'clip',
+    13: 'photo',
+    14: 'photoalbum',
+    15: 'playlist',
+    16: 'playlistFolder',
+    18: 'collection',
+    42: 'optimizedVersion'
 }
 
 PLATFORM_NAME_OVERRIDES = {
@@ -380,10 +402,13 @@ NOTIFICATION_PARAMETERS = [
              {'name': 'Initial Stream', 'type': 'int', 'value': 'initial_stream', 'description': 'If the stream is the initial stream of a continuous streaming session.', 'example': '0 or 1'},
              {'name': 'IP Address', 'type': 'str', 'value': 'ip_address', 'description': 'The IP address of the device being used for playback.'},
              {'name': 'Stream Duration', 'type': 'int', 'value': 'stream_duration', 'description': 'The duration (in minutes) for the stream.'},
+             {'name': 'Stream Duration (sec)', 'type': 'int', 'value': 'stream_duration_sec', 'description': 'The duration (in seconds) for the stream.'},
              {'name': 'Stream Time', 'type': 'str', 'value': 'stream_time', 'description': 'The duration (in time format) of the stream.'},
              {'name': 'Remaining Duration', 'type': 'int', 'value': 'remaining_duration', 'description': 'The remaining duration (in minutes) of the stream.'},
+             {'name': 'Remaining Duration (sec)', 'type': 'int', 'value': 'remaining_duration_sec', 'description': 'The remaining duration (in seconds) of the stream.'},
              {'name': 'Remaining Time', 'type': 'str', 'value': 'remaining_time', 'description': 'The remaining duration (in time format) of the stream.'},
              {'name': 'Progress Duration', 'type': 'int', 'value': 'progress_duration', 'description': 'The last reported offset (in minutes) of the stream.'},
+             {'name': 'Progress Duration (sec)', 'type': 'int', 'value': 'progress_duration_sec', 'description': 'The last reported offset (in seconds) of the stream.'},
              {'name': 'Progress Time', 'type': 'str', 'value': 'progress_time', 'description': 'The last reported offset (in time format) of the stream.'},
              {'name': 'Progress Percent', 'type': 'int', 'value': 'progress_percent', 'description': 'The last reported progress percent of the stream.'},
              {'name': 'Transcode Decision', 'type': 'str', 'value': 'transcode_decision', 'description': 'The transcode decision of the stream.'},
@@ -468,7 +493,8 @@ NOTIFICATION_PARAMETERS = [
              {'name': 'Title', 'type': 'str', 'value': 'title', 'description': 'The full title of the item.'},
              {'name': 'Library Name', 'type': 'str', 'value': 'library_name', 'description': 'The library name of the item.'},
              {'name': 'Show Name', 'type': 'str', 'value': 'show_name', 'description': 'The title of the TV series.'},
-             {'name': 'Episode Name', 'type': 'str', 'value': 'episode_name', 'description': 'The title of the episode.'},
+             {'name': 'Season Name', 'type': 'str', 'value': 'season_name', 'description': 'The title of the TV season.'},
+             {'name': 'Episode Name', 'type': 'str', 'value': 'episode_name', 'description': 'The title of the TV episode.'},
              {'name': 'Artist Name', 'type': 'str', 'value': 'artist_name', 'description': 'The name of the artist.'},
              {'name': 'Album Name', 'type': 'str', 'value': 'album_name', 'description': 'The title of the album.'},
              {'name': 'Track Name', 'type': 'str', 'value': 'track_name', 'description': 'The title of the track.'},
@@ -479,10 +505,10 @@ NOTIFICATION_PARAMETERS = [
              {'name': 'Episode Number 00', 'type': 'int', 'value': 'episode_num00', 'description': 'The two digit episode number.', 'example': 'e.g. 06, or 06-10'},
              {'name': 'Track Number', 'type': 'int', 'value': 'track_num', 'description': 'The track number.', 'example': 'e.g. 4, or 4-10'},
              {'name': 'Track Number 00', 'type': 'int', 'value': 'track_num00', 'description': 'The two digit track number.', 'example': 'e.g. 04, or 04-10'},
-             {'name': 'Season Count', 'type': 'int', 'value': 'season_count', 'description': 'The number of seasons.'},
-             {'name': 'Episode Count', 'type': 'int', 'value': 'episode_count', 'description': 'The number of episodes.'},
-             {'name': 'Album Count', 'type': 'int', 'value': 'album_count', 'description': 'The number of albums.'},
-             {'name': 'Track Count', 'type': 'int', 'value': 'track_count', 'description': 'The number of tracks.'},
+             {'name': 'Season Count', 'type': 'int', 'value': 'season_count', 'description': 'The number of seasons in a grouped recently added notification.'},
+             {'name': 'Episode Count', 'type': 'int', 'value': 'episode_count', 'description': 'The number of episodes in a grouped recently added notification.'},
+             {'name': 'Album Count', 'type': 'int', 'value': 'album_count', 'description': 'The number of albums in a grouped recently added notification.'},
+             {'name': 'Track Count', 'type': 'int', 'value': 'track_count', 'description': 'The number of tracks in a grouped recently added notification.'},
              {'name': 'Year', 'type': 'int', 'value': 'year', 'description': 'The release year for the item.'},
              {'name': 'Release Date', 'type': 'str', 'value': 'release_date', 'description': 'The release date (in date format) for the item.'},
              {'name': 'Air Date', 'type': 'str', 'value': 'air_date', 'description': 'The air date (in date format) for the item.'},
@@ -504,6 +530,7 @@ NOTIFICATION_PARAMETERS = [
              {'name': 'Audience Rating', 'type': 'float', 'value': 'audience_rating', 'description': 'The audience rating for the item.', 'help_text': 'Rating out of 10 for IMDB, percentage (%) for Rotten Tomatoes and TMDB.'},
              {'name': 'User Rating', 'type': 'float', 'value': 'user_rating', 'description': 'The user (star) rating (out of 10) for the item.'},
              {'name': 'Duration', 'type': 'int', 'value': 'duration', 'description': 'The duration (in minutes) for the item.'},
+             {'name': 'Duration (sec)', 'type': 'int', 'value': 'duration_sec', 'description': 'The duration (in seconds) for the item.'},
              {'name': 'Poster URL', 'type': 'str', 'value': 'poster_url', 'description': 'A URL for the movie, TV show, or album poster.'},
              {'name': 'Plex ID', 'type': 'str', 'value': 'plex_id', 'description': 'The Plex ID for the item.', 'example': 'e.g. 5d7769a9594b2b001e6a6b7e'},
              {'name': 'Plex URL', 'type': 'str', 'value': 'plex_url', 'description': 'The Plex URL to your server for the item.'},
@@ -559,6 +586,7 @@ NOTIFICATION_PARAMETERS = [
              {'name': 'File', 'type': 'str', 'value': 'file', 'description': 'The file path to the item.'},
              {'name': 'Filename', 'type': 'str', 'value': 'filename', 'description': 'The file name of the item.'},
              {'name': 'File Size', 'type': 'int', 'value': 'file_size', 'description': 'The file size of the item.'},
+             {'name': 'Guid', 'type': 'str', 'value': 'guid', 'description': 'The full guid for the item.'},
              {'name': 'Section ID', 'type': 'int', 'value': 'section_id', 'description': 'The unique identifier for the library.'},
              {'name': 'Rating Key', 'type': 'int', 'value': 'rating_key', 'description': 'The unique identifier for the movie, episode, or track.'},
              {'name': 'Parent Rating Key', 'type': 'int', 'value': 'parent_rating_key', 'description': 'The unique identifier for the season or album.'},
@@ -605,6 +633,8 @@ NOTIFICATION_PARAMETERS = [
         'parameters': [
              {'name': 'Tautulli Update Version', 'type': 'str', 'value': 'tautulli_update_version', 'description': 'The available update version for Tautulli.'},
              {'name': 'Tautulli Update Release URL', 'type': 'str', 'value': 'tautulli_update_release_url', 'description': 'The release page URL on GitHub.'},
+             {'name': 'Tautulli Update Exe', 'type': 'str', 'value': 'tautulli_update_exe', 'description': 'The Windows exe download URL for the available update.'},
+             {'name': 'Tautulli Update Pkg', 'type': 'str', 'value': 'tautulli_update_pkg', 'description': 'The MacOS pkg download URL for the available update.'},
              {'name': 'Tautulli Update Tar', 'type': 'str', 'value': 'tautulli_update_tar', 'description': 'The tar download URL for the available update.'},
              {'name': 'Tautulli Update Zip', 'type': 'str', 'value': 'tautulli_update_zip', 'description': 'The zip download URL for the available update.'},
              {'name': 'Tautulli Update Commit', 'type': 'str', 'value': 'tautulli_update_commit', 'description': 'The commit hash for the available update.'},

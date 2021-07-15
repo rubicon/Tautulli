@@ -4,12 +4,12 @@ on:
   push:
     branches: [master, beta, nightly]
     tags: [v*]
-    pull_request: ~
 
 jobs:
   build-installer:
     name: Build ${{ matrix.os_upper }} Installer
     runs-on: ${{ matrix.os }}-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -71,11 +71,6 @@ jobs:
         run: |
           pyinstaller -y ./package/Tautulli-${{ matrix.os }}.spec
 
-      - name: Move Windows Updater Files
-        if: matrix.os == 'windows'
-        run: |
-          Move-Item dist\updater\* dist\Tautulli\ -Force
-
       - name: Create Windows Installer
         uses: joncloud/makensis-action@v3.4
         if: matrix.os == 'windows'
@@ -105,7 +100,7 @@ jobs:
   release:
     name: Release Installers
     needs: build-installer
-    if: always() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'pull_request'
+    if: always() && startsWith(github.ref, 'refs/tags/') && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - name: Get Build Job Status
@@ -169,7 +164,7 @@ jobs:
   discord:
     name: Discord Notification
     needs: [build-installer, release]
-    if: always() && github.event_name != 'pull_request'
+    if: always() && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - name: Get Build Job Status

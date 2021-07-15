@@ -67,7 +67,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <p class="help-block">Set the time frame to include in the newsletter. Note: Days uses calendar days (i.e. since midnight).</p>
+                                        <p class="help-block">Set the time frame to include in the newsletter.</p>
                                     </div>
                                 </div>
                                 <div class="col-md-12 modal-config-section">
@@ -326,10 +326,14 @@
                                                 <div class="col-md-12">
                                                     <select class="form-control" id="${item['name']}" name="${item['name']}">
                                                         % for key, value in sorted(item['select_options'].items()):
-                                                        % if key == item['value']:
-                                                        <option value="${key}" selected>${value}</option>
+                                                        % if isinstance(value, list):
+                                                        <optgroup label="${key}">
+                                                            % for option in sorted(value, key=lambda x: x['text'].lower()):
+                                                                <option value="${option['value']}" ${'selected' if option['value'] == item['value'] else ''}>${option['text']}</option>
+                                                            % endfor
+                                                        </optgroup>
                                                         % else:
-                                                        <option value="${key}">${value}</option>
+                                                        <option value="${key}" ${'selected' if key == item['value'] else ''}>${value}</option>
                                                         % endif
                                                         % endfor
                                                     </select>
@@ -676,6 +680,7 @@
         }
 
         getNewslettersTable();
+        toggleRevealTokens();
     }
 
     function deleteCallback() {
@@ -787,6 +792,8 @@
         };
         $(this).on('focus keyup input', function () { resizeTextarea(this); }).removeAttr('data-autoresize');
     });
+
+    toggleRevealTokens();
 </script>
 % else:
 <div class="modal-dialog" role="document">

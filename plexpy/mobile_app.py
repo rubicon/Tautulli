@@ -32,32 +32,34 @@ else:
     from plexpy import logger
 
 
-TEMP_DEVICE_TOKEN = None
-INVALIDATE_TIMER = None
-
 _ONESIGNAL_APP_ID = '3b4b666a-d557-4b92-acdf-e2c8c4b95357'
+_ONESIGNAL_DISABLED = 'onesignal-disabled'
+
+TEMP_DEVICE_TOKENS = {}
 
 
-def set_temp_device_token(token=None):
-    global TEMP_DEVICE_TOKEN
-    TEMP_DEVICE_TOKEN = token
+def set_temp_device_token(token=None, remove=False, add=False, success=False):
+    global TEMP_DEVICE_TOKENS
 
-    if TEMP_DEVICE_TOKEN:
-        logger._BLACKLIST_WORDS.add(TEMP_DEVICE_TOKEN)
-    else:
-        logger._BLACKLIST_WORDS.discard(TEMP_DEVICE_TOKEN)
+    if token in TEMP_DEVICE_TOKENS and success:
+        if isinstance(TEMP_DEVICE_TOKENS[token], threading.Timer):
+            TEMP_DEVICE_TOKENS[token].cancel()
+        TEMP_DEVICE_TOKENS[token] = True
 
-    if TEMP_DEVICE_TOKEN is not None:
-        global INVALIDATE_TIMER
-        if INVALIDATE_TIMER:
-            INVALIDATE_TIMER.cancel()
+    elif token in TEMP_DEVICE_TOKENS and remove:
+        if isinstance(TEMP_DEVICE_TOKENS[token], threading.Timer):
+            TEMP_DEVICE_TOKENS[token].cancel()
+        del TEMP_DEVICE_TOKENS[token]
+
+    elif token not in TEMP_DEVICE_TOKENS and add:
         invalidate_time = 5 * 60  # 5 minutes
-        INVALIDATE_TIMER = threading.Timer(invalidate_time, set_temp_device_token, args=[None])
-        INVALIDATE_TIMER.start()
+        TEMP_DEVICE_TOKENS[token] = threading.Timer(invalidate_time, set_temp_device_token, args=[token, True])
+        TEMP_DEVICE_TOKENS[token].start()
+        logger._BLACKLIST_WORDS.add(token)
 
 
-def get_temp_device_token():
-    return TEMP_DEVICE_TOKEN
+def get_temp_device_token(token=None):
+    return TEMP_DEVICE_TOKENS.get(token)
 
 
 def get_mobile_devices(device_id=None, device_token=None):
@@ -87,14 +89,16 @@ def get_mobile_device_by_token(device_token=None):
     return get_mobile_devices(device_token=device_token)
 
 
-def add_mobile_device(device_id=None, device_name=None, device_token=None, friendly_name=None, onesignal_id=None):
+def add_mobile_device(device_id=None, device_name=None, device_token=None,
+                      platform=None, version=None, friendly_name=None, onesignal_id=None):
     db = database.MonitorDatabase()
 
     keys = {'device_id': device_id}
     values = {'device_name': device_name,
               'device_token': device_token,
-              'onesignal_id': onesignal_id,
-              'official': validate_onesignal_id(onesignal_id=onesignal_id)}
+              'platform': platform,
+              'version': version,
+              'onesignal_id': onesignal_id}
 
     if friendly_name:
         values['friendly_name'] = friendly_name
@@ -109,8 +113,10 @@ def add_mobile_device(device_id=None, device_name=None, device_token=None, frien
     if result == 'insert':
         logger.info("Tautulli MobileApp :: Registered mobile device '%s' in the database." % device_name)
     else:
-        logger.debug("Tautulli MobileApp :: Re-registered mobile device '%s' in the database." % device_name)
+        logger.info("Tautulli MobileApp :: Re-registered mobile device '%s' in the database." % device_name)
 
+    set_last_seen(device_token=device_token)
+    threading.Thread(target=set_official, args=[device_id, onesignal_id]).start()
     return True
 
 
@@ -124,6 +130,9 @@ def get_mobile_device_config(mobile_device_id=None):
     db = database.MonitorDatabase()
     result = db.select_single('SELECT * FROM mobile_devices WHERE id = ?',
                               args=[mobile_device_id])
+
+    if result['onesignal_id'] == _ONESIGNAL_DISABLED:
+        result['onesignal_id'] = ''
 
     return result
 
@@ -164,9 +173,23 @@ def delete_mobile_device(mobile_device_id=None, device_id=None):
         return False
 
 
+def set_official(device_id, onesignal_id):
+    db = database.MonitorDatabase()
+    official = validate_onesignal_id(onesignal_id=onesignal_id)
+    platform = 'android' if official > 0 else None
+
+    try:
+        result = db.action('UPDATE mobile_devices '
+                           'SET official = ?, platform = coalesce(platform, ?) '
+                           'WHERE device_id = ?',
+                           args=[official, platform, device_id])
+    except Exception as e:
+        logger.warn("Tautulli MobileApp :: Failed to set official flag for device: %s." % e)
+        return
+
+
 def set_last_seen(device_token=None):
     db = database.MonitorDatabase()
-
     last_seen = helpers.timestamp()
 
     try:
@@ -179,13 +202,27 @@ def set_last_seen(device_token=None):
 
 def validate_onesignal_id(onesignal_id):
     if onesignal_id is None:
-        return False
+        return 0
+    elif onesignal_id == _ONESIGNAL_DISABLED:
+        return 2
 
     headers = {'Content-Type': 'application/json'}
     payload = {'app_id': _ONESIGNAL_APP_ID}
 
-    r = requests.get('https://onesignal.com/api/v1/players/{}'.format(onesignal_id), headers=headers, json=payload)
-    return r.status_code == 200
+    logger.info("Tautulli MobileApp :: Validating OneSignal ID")
+    try:
+        r = requests.get('https://onesignal.com/api/v1/players/{}'.format(onesignal_id), headers=headers, json=payload)
+        status_code = r.status_code
+        logger.info("Tautulli MobileApp :: OneSignal ID validation returned status code %s", status_code)
+        return int(status_code == 200)
+    except Exception as e:
+        logger.warn("Tautulli MobileApp :: Failed to validate OneSignal ID: %s." % e)
+        return -1
+
+
+def revalidate_onesignal_ids():
+    for device in get_mobile_devices():
+        set_official(device['device_id'], device['onesignal_id'])
 
 
 def blacklist_logger():

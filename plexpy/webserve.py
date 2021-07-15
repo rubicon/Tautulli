@@ -43,6 +43,9 @@ import mako.exceptions
 
 import websocket
 
+if sys.version_info >= (3, 6):
+    import secrets
+
 import plexpy
 if plexpy.PYTHON2:
     import activity_pinger
@@ -73,7 +76,7 @@ if plexpy.PYTHON2:
     from api2 import API2
     from helpers import checked, addtoapi, get_ip, create_https_certificates, build_datatables_json, sanitize_out
     from session import get_session_info, get_session_user_id, allow_session_user, allow_session_library
-    from webauth import AuthController, requireAuth, member_of, check_auth
+    from webauth import AuthController, requireAuth, member_of, check_auth, get_jwt_token
     if common.PLATFORM == 'Windows':
         import windows
     elif common.PLATFORM == 'Darwin':
@@ -107,7 +110,7 @@ else:
     from plexpy.api2 import API2
     from plexpy.helpers import checked, addtoapi, get_ip, create_https_certificates, build_datatables_json, sanitize_out
     from plexpy.session import get_session_info, get_session_user_id, allow_session_user, allow_session_library
-    from plexpy.webauth import AuthController, requireAuth, member_of, check_auth
+    from plexpy.webauth import AuthController, requireAuth, member_of, check_auth, get_jwt_token
     if common.PLATFORM == 'Windows':
         from plexpy import windows
     elif common.PLATFORM == 'Darwin':
@@ -364,10 +367,10 @@ class WebInterface(object):
         pms_connect = pmsconnect.PmsConnect()
         result = pms_connect.terminate_session(session_key=session_key, session_id=session_id, message=message)
 
-        if result is True:
-            return {'result': 'success', 'message': 'Session terminated.'}
-        elif result:
+        if isinstance(result, str):
             return {'result': 'error', 'message': 'Failed to terminate session: {}.'.format(result)}
+        elif result is True:
+            return {'result': 'success', 'message': 'Session terminated.'}
         else:
             return {'result': 'error', 'message': 'Failed to terminate session.'}
 
@@ -644,11 +647,12 @@ class WebInterface(object):
             ```
             Required parameters:
                 section_id (str):           The id of the Plex library section
-
-            Optional parameters:
                 custom_thumb (str):         The URL for the custom library thumbnail
                 custom_art (str):           The URL for the custom library background art
                 keep_history (int):         0 or 1
+
+            Optional parameters:
+                None
 
             Returns:
                 None
@@ -952,7 +956,7 @@ class WebInterface(object):
     @cherrypy.tools.json_out()
     @requireAuth(member_of("admin"))
     @addtoapi()
-    def get_library(self, section_id=None, **kwargs):
+    def get_library(self, section_id=None, include_last_accessed=False, **kwargs):
         """ Get a library's details.
 
             ```
@@ -960,7 +964,7 @@ class WebInterface(object):
                 section_id (str):               The id of the Plex library section
 
             Optional parameters:
-                None
+                include_last_accessed (bool):   True to include the last_accessed value for the library.
 
             Returns:
                 json:
@@ -971,6 +975,7 @@ class WebInterface(object):
                      "do_notify_created": 1,
                      "is_active": 1,
                      "keep_history": 1,
+                     "last_accessed": 1462693216,
                      "library_art": "/:/resources/movie-fanart.jpg",
                      "library_thumb": "/:/resources/movie.png",
                      "parent_count": null,
@@ -982,9 +987,11 @@ class WebInterface(object):
                      }
             ```
         """
+        include_last_accessed = helpers.bool_true(include_last_accessed)
         if section_id:
             library_data = libraries.Libraries()
-            library_details = library_data.get_details(section_id=section_id)
+            library_details = library_data.get_details(section_id=section_id,
+                                                       include_last_accessed=include_last_accessed)
             if library_details:
                 return library_details
             else:
@@ -1367,12 +1374,13 @@ class WebInterface(object):
             ```
             Required parameters:
                 user_id (str):              The id of the Plex user
-
-            Optional paramters:
                 friendly_name(str):         The friendly name of the user
                 custom_thumb (str):         The URL for the custom user thumbnail
                 keep_history (int):         0 or 1
                 allow_guest (int):          0 or 1
+
+            Optional paramters:
+                None
 
             Returns:
                 None
@@ -1551,10 +1559,13 @@ class WebInterface(object):
                      "recordsFiltered": 10,
                      "data":
                         [{"browser": "Safari 7.0.3",
+                          "current": false,
+                          "expiry": "2021-06-30 18:48:03",
                           "friendly_name": "Jon Snow",
                           "host": "http://plexpy.castleblack.com",
                           "ip_address": "xxx.xxx.xxx.xxx",
                           "os": "Mac OS X",
+                          "row_id": 1,
                           "timestamp": 1462591869,
                           "user": "LordCommanderSnow",
                           "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A",
@@ -1578,8 +1589,12 @@ class WebInterface(object):
                           ("browser", True, True)]
             kwargs['json_data'] = build_datatables_json(kwargs, dt_columns, "timestamp")
 
+        jwt_token = get_jwt_token()
+
         user_data = users.Users()
-        history = user_data.get_datatables_user_login(user_id=user_id, kwargs=kwargs)
+        history = user_data.get_datatables_user_login(user_id=user_id,
+                                                      jwt_token=jwt_token,
+                                                      kwargs=kwargs)
 
         return history
 
@@ -1587,15 +1602,41 @@ class WebInterface(object):
     @cherrypy.tools.json_out()
     @requireAuth(member_of("admin"))
     @addtoapi()
-    def get_user(self, user_id=None, **kwargs):
+    def logout_user_session(self, row_ids=None, **kwargs):
+        """ Logout Tautulli user sessions.
+
+            ```
+            Required parameters:
+                row_ids (str):          Comma separated row ids to sign out, e.g. "2,3,8"
+
+            Optional parameters:
+                None
+
+            Returns:
+                None
+            ```
+        """
+        user_data = users.Users()
+        result = user_data.clear_user_login_token(row_ids=row_ids)
+
+        if result:
+            return {'result': 'success', 'message': 'Users session logged out.'}
+        else:
+            return {'result': 'error', 'message': 'Unable to logout user session.'}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @requireAuth(member_of("admin"))
+    @addtoapi()
+    def get_user(self, user_id=None, include_last_seen=False, **kwargs):
         """ Get a user's details.
 
             ```
             Required parameters:
-                user_id (str):          The id of the Plex user
+                user_id (str):              The id of the Plex user
 
             Optional parameters:
-                None
+                include_last_seen (bool):   True to include the last_seen value for the user.
 
             Returns:
                 json:
@@ -1610,6 +1651,7 @@ class WebInterface(object):
                      "is_home_user": 1,
                      "is_restricted": 0,
                      "keep_history": 1,
+                     "last_seen": 1462591869,
                      "row_id": 1,
                      "shared_libraries": ["10", "1", "4", "5", "15", "20", "2"],
                      "user_id": 133788,
@@ -1618,9 +1660,11 @@ class WebInterface(object):
                      }
             ```
         """
+        include_last_seen = helpers.bool_true(include_last_seen)
         if user_id:
             user_data = users.Users()
-            user_details = user_data.get_details(user_id=user_id)
+            user_details = user_data.get_details(user_id=user_id,
+                                                 include_last_seen=include_last_seen)
             if user_details:
                 return user_details
             else:
@@ -1927,41 +1971,58 @@ class WebInterface(object):
 
         custom_where = []
         if user_id:
-            custom_where.append(['session_history.user_id', user_id])
+            user_id = helpers.split_strip(user_id)
+            if user_id:
+                custom_where.append(['session_history.user_id', user_id])
         elif user:
-            custom_where.append(['session_history.user', user])
+            user = helpers.split_strip(user)
+            if user:
+                custom_where.append(['session_history.user', user])
         if 'rating_key' in kwargs:
-            rating_key = kwargs.get('rating_key', '')
-            custom_where.append(['session_history.rating_key', rating_key])
+            rating_key = helpers.split_strip(kwargs.get('rating_key', ''))
+            if rating_key:
+                custom_where.append(['session_history.rating_key', rating_key])
         if 'parent_rating_key' in kwargs:
-            rating_key = kwargs.get('parent_rating_key', '')
-            custom_where.append(['session_history.parent_rating_key', rating_key])
+            rating_key = helpers.split_strip(kwargs.get('parent_rating_key', ''))
+            if rating_key:
+                custom_where.append(['session_history.parent_rating_key', rating_key])
         if 'grandparent_rating_key' in kwargs:
-            rating_key = kwargs.get('grandparent_rating_key', '')
-            custom_where.append(['session_history.grandparent_rating_key', rating_key])
+            rating_key = helpers.split_strip(kwargs.get('grandparent_rating_key', ''))
+            if rating_key:
+                custom_where.append(['session_history.grandparent_rating_key', rating_key])
         if 'start_date' in kwargs:
-            start_date = kwargs.get('start_date', '')
-            custom_where.append(['strftime("%Y-%m-%d", datetime(started, "unixepoch", "localtime"))', start_date])
+            start_date = helpers.split_strip(kwargs.get('start_date', ''))
+            if start_date:
+                custom_where.append(['strftime("%Y-%m-%d", datetime(started, "unixepoch", "localtime"))', start_date])
         if 'reference_id' in kwargs:
-            reference_id = kwargs.get('reference_id', '')
-            custom_where.append(['session_history.reference_id', reference_id])
+            reference_id = helpers.split_strip(kwargs.get('reference_id', ''))
+            if reference_id:
+                custom_where.append(['session_history.reference_id', reference_id])
         if 'section_id' in kwargs:
-            section_id = kwargs.get('section_id', '')
-            custom_where.append(['session_history_metadata.section_id', section_id])
+            section_id = helpers.split_strip(kwargs.get('section_id', ''))
+            if section_id:
+                custom_where.append(['session_history.section_id', section_id])
         if 'media_type' in kwargs:
-            media_type = kwargs.get('media_type', '')
-            if media_type not in ('all', 'live'):
-                custom_where.append(['session_history.media_type', media_type])
-                custom_where.append(['session_history_metadata.live', '0'])
-            elif media_type == 'live':
-                custom_where.append(['session_history_metadata.live', '1'])
+            media_type = helpers.split_strip(kwargs.get('media_type', ''))
+            if media_type and 'all' not in media_type:
+                if 'live' in media_type:
+                    media_type.remove('live')
+                    if len(media_type):
+                        custom_where.append(['session_history_metadata.live OR', '1'])
+                    else:
+                        custom_where.append(['session_history_metadata.live', '1'])
+                else:
+                    custom_where.append(['session_history_metadata.live', '0'])
+                if media_type:
+                    custom_where.append(['session_history.media_type', media_type])
         if 'transcode_decision' in kwargs:
-            transcode_decision = kwargs.get('transcode_decision', '')
-            if transcode_decision:
+            transcode_decision = helpers.split_strip(kwargs.get('transcode_decision', ''))
+            if transcode_decision and 'all' not in transcode_decision:
                 custom_where.append(['session_history_media_info.transcode_decision', transcode_decision])
         if 'guid' in kwargs:
-            guid = kwargs.get('guid', '').split('?')[0]
-            custom_where.append(['session_history_metadata.guid', 'LIKE ' + guid + '%'])  # SQLite LIKE wildcard
+            guid = helpers.split_strip(kwargs.get('guid', '').split('?')[0])
+            if guid:
+                custom_where.append(['session_history_metadata.guid', ['LIKE ' + g + '%' for g in guid]])
 
         data_factory = datafactory.DataFactory()
         history = data_factory.get_datatables_history(kwargs=kwargs, custom_where=custom_where,
@@ -1998,6 +2059,8 @@ class WebInterface(object):
                     {"aspect_ratio": "2.35",
                      "audio_bitrate": 231,
                      "audio_channels": 6,
+                     "audio_language": "English",
+                     "audio_language_code": "eng",
                      "audio_codec": "aac",
                      "audio_decision": "transcode",
                      "bitrate": 2731,
@@ -2013,6 +2076,8 @@ class WebInterface(object):
                      "quality_profile": "1.5 Mbps 480p",
                      "stream_audio_bitrate": 203,
                      "stream_audio_channels": 2,
+                     "stream_audio_language": "English",
+                     "stream_audio_language_code", "eng",
                      "stream_audio_codec": "aac",
                      "stream_audio_decision": "transcode",
                      "stream_bitrate": 730,
@@ -2669,7 +2734,10 @@ class WebInterface(object):
         if client_id and sync_id:
             plex_tv = plextv.PlexTV()
             delete_row = plex_tv.delete_sync(client_id=client_id, sync_id=sync_id)
-            return {'result': 'success', 'message': 'Synced item deleted successfully.'}
+            if delete_row:
+                return {'result': 'success', 'message': 'Synced item deleted successfully.'}
+            else:
+                return {'result': 'error', 'message': 'Failed to delete synced item.'}
         else:
             return {'result': 'error', 'message': 'Missing client ID and sync ID.'}
 
@@ -3067,9 +3135,6 @@ class WebInterface(object):
         config = {
             "allow_guest_access": checked(plexpy.CONFIG.ALLOW_GUEST_ACCESS),
             "history_table_activity": checked(plexpy.CONFIG.HISTORY_TABLE_ACTIVITY),
-            "http_basic_auth": checked(plexpy.CONFIG.HTTP_BASIC_AUTH),
-            "http_hash_password": checked(plexpy.CONFIG.HTTP_HASH_PASSWORD),
-            "http_hashed_password": plexpy.CONFIG.HTTP_HASHED_PASSWORD,
             "http_host": plexpy.CONFIG.HTTP_HOST,
             "http_username": plexpy.CONFIG.HTTP_USERNAME,
             "http_port": plexpy.CONFIG.HTTP_PORT,
@@ -3100,6 +3165,7 @@ class WebInterface(object):
             "log_dir": plexpy.CONFIG.LOG_DIR,
             "log_blacklist": checked(plexpy.CONFIG.LOG_BLACKLIST),
             "check_github": checked(plexpy.CONFIG.CHECK_GITHUB),
+            "check_github_interval": plexpy.CONFIG.CHECK_GITHUB_INTERVAL,
             "interface_list": interface_list,
             "cache_sizemb": plexpy.CONFIG.CACHE_SIZEMB,
             "pms_identifier": plexpy.CONFIG.PMS_IDENTIFIER,
@@ -3137,6 +3203,9 @@ class WebInterface(object):
             "notify_concurrent_threshold": plexpy.CONFIG.NOTIFY_CONCURRENT_THRESHOLD,
             "notify_continued_session_threshold": plexpy.CONFIG.NOTIFY_CONTINUED_SESSION_THRESHOLD,
             "notify_new_device_initial_only": checked(plexpy.CONFIG.NOTIFY_NEW_DEVICE_INITIAL_ONLY),
+            "notify_server_connection_threshold": plexpy.CONFIG.NOTIFY_SERVER_CONNECTION_THRESHOLD,
+            "notify_server_update_repeat": checked(plexpy.CONFIG.NOTIFY_SERVER_UPDATE_REPEAT),
+            "notify_plexpy_update_repeat": checked(plexpy.CONFIG.NOTIFY_PLEXPY_UPDATE_REPEAT),
             "home_sections": json.dumps(plexpy.CONFIG.HOME_SECTIONS),
             "home_stats_cards": json.dumps(plexpy.CONFIG.HOME_STATS_CARDS),
             "home_library_cards": json.dumps(plexpy.CONFIG.HOME_LIBRARY_CARDS),
@@ -3201,8 +3270,9 @@ class WebInterface(object):
             "notify_consecutive", "notify_recently_added_upgrade",
             "notify_group_recently_added_grandparent", "notify_group_recently_added_parent",
             "notify_new_device_initial_only",
-            "monitor_pms_updates", "get_file_sizes", "log_blacklist", "http_hash_password",
-            "allow_guest_access", "cache_images", "http_proxy", "http_basic_auth", "notify_concurrent_by_ip",
+            "notify_server_update_repeat", "notify_plexpy_update_repeat",
+            "monitor_pms_updates", "get_file_sizes", "log_blacklist",
+            "allow_guest_access", "cache_images", "http_proxy", "notify_concurrent_by_ip",
             "history_table_activity", "plexpy_auto_update",
             "themoviedb_lookup", "tvmaze_lookup", "musicbrainz_lookup", "http_plex_admin",
             "newsletter_self_hosted", "newsletter_inline_styles", "sys_tray_icon"
@@ -3215,29 +3285,13 @@ class WebInterface(object):
                 kwargs[checked_config] = 1
 
         # If http password exists in config, do not overwrite when blank value received
-        if kwargs.get('http_password'):
-            if kwargs['http_password'] == '    ' and plexpy.CONFIG.HTTP_PASSWORD != '':
-                if kwargs.get('http_hash_password') and not plexpy.CONFIG.HTTP_HASHED_PASSWORD:
-                    kwargs['http_password'] = make_hash(plexpy.CONFIG.HTTP_PASSWORD)
-                    kwargs['http_hashed_password'] = 1
-                else:
-                    kwargs['http_password'] = plexpy.CONFIG.HTTP_PASSWORD
-
-            elif kwargs['http_password'] and kwargs.get('http_hash_password'):
-                kwargs['http_password'] = make_hash(kwargs['http_password'])
-                kwargs['http_hashed_password'] = 1
-
-                # Flag to refresh JWT uuid to log out clients
-                kwargs['jwt_update_secret'] = True and not first_run
-
-            elif not kwargs.get('http_hash_password'):
-                kwargs['http_hashed_password'] = 0
-
-                # Flag to refresh JWT uuid to log out clients
-                kwargs['jwt_update_secret'] = True and not first_run
-
+        if kwargs.get('http_password') == '    ':
+            kwargs['http_password'] = plexpy.CONFIG.HTTP_PASSWORD
         else:
-            kwargs['http_hashed_password'] = 0
+            if kwargs['http_password'] != '':
+                kwargs['http_password'] = make_hash(kwargs['http_password'])
+            # Flag to refresh JWT uuid to log out clients
+            kwargs['jwt_update_secret'] = True and not first_run
 
         for plain_config, use_config in [(x[4:], x) for x in kwargs if x.startswith('use_')]:
             # the use prefix is fairly nice in the html, but does not match the actual config
@@ -3250,6 +3304,7 @@ class WebInterface(object):
 
         # If we change any monitoring settings, make sure we reschedule tasks.
         if kwargs.get('check_github') != plexpy.CONFIG.CHECK_GITHUB or \
+                kwargs.get('check_github_interval') != str(plexpy.CONFIG.CHECK_GITHUB_INTERVAL) or \
                 kwargs.get('refresh_libraries_interval') != str(plexpy.CONFIG.REFRESH_LIBRARIES_INTERVAL) or \
                 kwargs.get('refresh_users_interval') != str(plexpy.CONFIG.REFRESH_USERS_INTERVAL) or \
                 kwargs.get('pms_update_check_interval') != str(plexpy.CONFIG.PMS_UPDATE_CHECK_INTERVAL) or \
@@ -3797,12 +3852,12 @@ class WebInterface(object):
     @requireAuth(member_of("admin"))
     def verify_mobile_device(self, device_token='', cancel=False, **kwargs):
         if helpers.bool_true(cancel):
-            mobile_app.set_temp_device_token(None)
+            mobile_app.set_temp_device_token(device_token, remove=True)
             return {'result': 'error', 'message': 'Device registration cancelled.'}
 
-        result = mobile_app.get_temp_device_token()
+        result = mobile_app.get_temp_device_token(device_token)
         if result is True:
-            mobile_app.set_temp_device_token(None)
+            mobile_app.set_temp_device_token(device_token, remove=True)
             return {'result': 'success', 'message': 'Device registered successfully.', 'data': result}
         else:
             return {'result': 'error', 'message': 'Device not registered.'}
@@ -3901,9 +3956,16 @@ class WebInterface(object):
         if not app:
             return {'result': 'error', 'message': 'No app specified for import'}
 
-        if database_file:
+        if database_path:
+            database_file_name = os.path.basename(database_path)
+            database_cache_path = os.path.join(plexpy.CONFIG.CACHE_DIR, database_file_name + '.import.db')
+            logger.info("Received database file '%s' for import. Saving to cache: %s",
+                        database_file_name, database_cache_path)
+            database_path = shutil.copyfile(database_path, database_cache_path)
+
+        elif database_file:
             database_path = os.path.join(plexpy.CONFIG.CACHE_DIR, database_file.filename + '.import.db')
-            logger.info("Received database file '%s' for import. Saving to cache '%s'.",
+            logger.info("Received database file '%s' for import. Saving to cache: %s",
                         database_file.filename, database_path)
             with open(database_path, 'wb') as f:
                 while True:
@@ -4044,55 +4106,6 @@ class WebInterface(object):
             return {'result': 'success', 'path': path, 'data': data}
         else:
             return {'result': 'error', 'message': 'Invalid path.'}
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @requireAuth(member_of("admin"))
-    @addtoapi()
-    def get_pms_token(self, username=None, password=None, **kwargs):
-        """ Get the user's Plex token used for Tautulli.
-
-            ```
-            Required parameters:
-                username (str):     The Plex.tv username
-                password (str):     The Plex.tv password
-
-            Optional parameters:
-                None
-
-            Returns:
-                string:             The Plex token used for Tautulli
-            ```
-        """
-        if not username and not password:
-            return None
-
-        plex_tv = plextv.PlexTV(username=username, password=password)
-        result = plex_tv.get_token()
-
-        if result:
-            return result['auth_token']
-        else:
-            logger.warn("Unable to retrieve Plex.tv token.")
-            return None
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @requireAuth(member_of("admin"))
-    def get_plexpy_pms_token(self, username=None, password=None, force=False, **kwargs):
-        """ Fetch a new Plex.tv token for Tautulli """
-        if not username and not password:
-            return None
-
-        force = helpers.bool_true(force)
-
-        plex_tv = plextv.PlexTV(username=username, password=password)
-        token = plex_tv.get_plexpy_pms_token(force=force)
-
-        if token:
-            return {'result': 'success', 'message': 'Authentication successful.', 'token': token}
-        else:
-            return {'result': 'error', 'message': 'Authentication failed.'}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -4241,13 +4254,16 @@ class WebInterface(object):
     def generate_api_key(self, device=None, **kwargs):
         apikey = ''
         while not apikey or apikey == plexpy.CONFIG.API_KEY or mobile_app.get_mobile_device_by_token(device_token=apikey):
-            apikey = plexpy.generate_uuid()
+            if sys.version_info >= (3, 6):
+                apikey = secrets.token_urlsafe(24)
+            else:
+                apikey = plexpy.generate_uuid()
 
         logger.info("New API key generated.")
         logger._BLACKLIST_WORDS.add(apikey)
 
         if helpers.bool_true(device):
-            mobile_app.set_temp_device_token(apikey)
+            mobile_app.set_temp_device_token(apikey, add=True)
 
         return apikey
 
@@ -4604,7 +4620,7 @@ class WebInterface(object):
         """ See real_pms_image_proxy docs string"""
 
         refresh = False
-        if kwargs.get('refresh'):
+        if kwargs.get('refresh') or 'no-cache' in cherrypy.request.headers.get('Cache-Control', ''):
             refresh = False if get_session_user_id() else True
 
         kwargs['refresh'] = refresh
@@ -4630,7 +4646,7 @@ class WebInterface(object):
                 background (str):       Hex color, e.g. 282828
                 blur (str):             3
                 img_format (str):       png
-                fallback (str):         "poster", "cover", "art", "poster-live", "art-live", "art-live-full"
+                fallback (str):         "poster", "cover", "art", "poster-live", "art-live", "art-live-full", "user"
                 refresh (bool):         True or False whether to refresh the image cache
                 return_hash (bool):     True or False to return the self-hosted image hash instead of the image
 
@@ -4638,6 +4654,8 @@ class WebInterface(object):
                 None
             ```
         """
+        cherrypy.response.headers['Cache-Control'] = 'max-age=2592000'  # 30 days
+
         if isinstance(img, str) and img.startswith('interfaces/default/images'):
             fp = os.path.join(plexpy.PROG_DIR, 'data', img)
             return serve_file(path=fp, content_type='image/png')
@@ -4658,11 +4676,15 @@ class WebInterface(object):
             else:
                 img = '/library/metadata/{}/thumb'.format(rating_key)
 
-        if img.startswith('/library/metadata'):
-            parts = 6 if 'composite' in img else 5
+        if img and not img.startswith('http'):
+            parts = 5
+            if img.startswith('/playlists'):
+                parts -= 1
+            rating_key_idx = parts - 2
+            parts += int('composite' in img)
             img_split = img.split('/')
             img = '/'.join(img_split[:parts])
-            img_rating_key = img_split[3]
+            img_rating_key = img_split[rating_key_idx]
             if rating_key != img_rating_key:
                 rating_key = img_rating_key
 
@@ -4693,6 +4715,7 @@ class WebInterface(object):
             # the image does not exist, download it from pms
             try:
                 pms_connect = pmsconnect.PmsConnect()
+                pms_connect.request_handler._silent = True
                 result = pms_connect.get_image(img=img,
                                                width=width,
                                                height=height,
@@ -4715,6 +4738,7 @@ class WebInterface(object):
 
             except Exception as e:
                 logger.warn("Failed to get image %s, falling back to %s." % (img, fallback))
+                cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
                 if fallback in common.DEFAULT_IMAGES:
                     fbi = common.DEFAULT_IMAGES[fallback]
                     fp = os.path.join(plexpy.PROG_DIR, 'data', fbi)
@@ -5953,9 +5977,10 @@ class WebInterface(object):
 
             ```
             Required parameters:
-                machine_id (str):       The PMS identifier
+                None
 
             Optional parameters:
+                machine_id (str):       The PMS identifier
                 user_id (str):          The id of the Plex user
 
             Returns:
@@ -5976,6 +6001,7 @@ class WebInterface(object):
                       "root_title": "Movies",
                       "state": "complete",
                       "sync_id": "11617019",
+                      "sync_media_type": null,
                       "sync_title": "Deadpool",
                       "total_size": "560718134",
                       "user": "DrukenDwarfMan",
@@ -6030,7 +6056,7 @@ class WebInterface(object):
                 stats_start (int)       The row number of the stat item to start at, 0
                 stats_count (int):      The number of stat items to return, 5
                 stat_id (str):          A single stat to return, 'top_movies', 'popular_movies',
-                                        'top_tv', 'popular_tv', 'top_music', 'popular_music',
+                                        'top_tv', 'popular_tv', 'top_music', 'popular_music', 'top_libraries',
                                         'top_users', 'top_platforms', 'last_watched', 'most_concurrent'
 
             Returns:
@@ -6080,6 +6106,10 @@ class WebInterface(object):
                       "rows": [{...}]
                       },
                      {"stat_id": "last_watched",
+                      "rows": [{...}]
+                      },
+                     {"stat_id": "top_libraries",
+                      "stat_type": "total_plays",
                       "rows": [{...}]
                       },
                      {"stat_id": "top_users",

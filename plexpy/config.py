@@ -24,6 +24,7 @@ import time
 import threading
 
 from configobj import ConfigObj, ParseError
+from hashing_passwords import make_hash
 
 import plexpy
 if plexpy.PYTHON2:
@@ -114,7 +115,7 @@ _CONFIG_DEFINITIONS = {
     'HOME_SECTIONS': (list, 'General', ['current_activity', 'watch_stats', 'library_stats', 'recently_added']),
     'HOME_LIBRARY_CARDS': (list, 'General', ['first_run']),
     'HOME_STATS_CARDS': (list, 'General', ['top_movies', 'popular_movies', 'top_tv', 'popular_tv', 'top_music',
-        'popular_music', 'last_watched', 'top_users', 'top_platforms', 'most_concurrent']),
+        'popular_music', 'last_watched', 'top_libraries', 'top_users', 'top_platforms', 'most_concurrent']),
     'HOME_REFRESH_INTERVAL': (int, 'General', 10),
     'HTTPS_CREATE_CERT': (int, 'General', 1),
     'HTTPS_CERT': (str, 'General', ''),
@@ -124,8 +125,8 @@ _CONFIG_DEFINITIONS = {
     'HTTPS_IP': (str, 'General', '127.0.0.1'),
     'HTTP_BASIC_AUTH': (int, 'General', 0),
     'HTTP_ENVIRONMENT': (str, 'General', 'production'),
-    'HTTP_HASH_PASSWORD': (int, 'General', 0),
-    'HTTP_HASHED_PASSWORD': (int, 'General', 0),
+    'HTTP_HASH_PASSWORD': (int, 'General', 1),
+    'HTTP_HASHED_PASSWORD': (int, 'General', 1),
     'HTTP_HOST': (str, 'General', '0.0.0.0'),
     'HTTP_PASSWORD': (str, 'General', ''),
     'HTTP_PORT': (int, 'General', 8181),
@@ -137,6 +138,7 @@ _CONFIG_DEFINITIONS = {
     'HTTP_RATE_LIMIT_ATTEMPTS': (int, 'General', 10),
     'HTTP_RATE_LIMIT_ATTEMPTS_INTERVAL': (int, 'General', 300),
     'HTTP_RATE_LIMIT_LOCKOUT_TIME': (int, 'General', 300),
+    'HTTP_THREAD_POOL': (int, 'General', 10),
     'INTERFACE': (str, 'General', 'default'),
     'IMGUR_CLIENT_ID': (str, 'Monitoring', ''),
     'JOURNAL_MODE': (str, 'Advanced', 'WAL'),
@@ -171,6 +173,10 @@ _CONFIG_DEFINITIONS = {
     'NOTIFY_CONCURRENT_BY_IP': (int, 'Monitoring', 0),
     'NOTIFY_CONCURRENT_THRESHOLD': (int, 'Monitoring', 2),
     'NOTIFY_NEW_DEVICE_INITIAL_ONLY': (int, 'Monitoring', 1),
+    'NOTIFY_SERVER_CONNECTION_THRESHOLD': (int, 'Monitoring', 60),
+    'NOTIFY_SERVER_UPDATE_REPEAT': (int, 'Monitoring', 0),
+    'NOTIFY_PLEXPY_UPDATE_REPEAT': (int, 'Monitoring', 0),
+    'NOTIFY_TEXT_EVAL': (int, 'Advanced', 0),
     'PLEXPY_AUTO_UPDATE': (int, 'General', 0),
     'REFRESH_LIBRARIES_INTERVAL': (int, 'Monitoring', 12),
     'REFRESH_LIBRARIES_ON_STARTUP': (int, 'Monitoring', 1),
@@ -185,6 +191,7 @@ _CONFIG_DEFINITIONS = {
     'TV_WATCHED_PERCENT': (int, 'Monitoring', 85),
     'UPDATE_DB_INTERVAL': (int, 'General', 24),
     'UPDATE_SHOW_CHANGELOG': (int, 'General', 1),
+    'UPGRADE_FLAG': (int, 'Advanced', 0),
     'VERBOSE_LOGS': (int, 'Advanced', 1),
     'VERIFY_SSL_CERT': (bool_int, 'Advanced', 1),
     'WEBSOCKET_MONITOR_PING_PONG': (int, 'Advanced', 0),
@@ -546,3 +553,30 @@ class Config(object):
                 self.PLEXPY_AUTO_UPDATE = 0
 
             self.CONFIG_VERSION = 17
+
+        if self.CONFIG_VERSION == 17:
+            home_stats_cards = self.HOME_STATS_CARDS
+            if 'top_users' in home_stats_cards:
+                top_users_index = home_stats_cards.index('top_users')
+                home_stats_cards.insert(top_users_index, 'top_libraries')
+            else:
+                home_stats_cards.append('top_libraries')
+            self.HOME_STATS_CARDS = home_stats_cards
+
+            self.CONFIG_VERSION = 18
+
+        if self.CONFIG_VERSION == 18:
+            self.CHECK_GITHUB_INTERVAL = (
+                    int(self.CHECK_GITHUB_INTERVAL // 60)
+                    + (self.CHECK_GITHUB_INTERVAL % 60 > 0)
+            )
+
+            self.CONFIG_VERSION = 19
+
+        if self.CONFIG_VERSION == 19:
+            if self.HTTP_PASSWORD and not self.HTTP_HASHED_PASSWORD:
+                self.HTTP_PASSWORD = make_hash(self.HTTP_PASSWORD)
+            self.HTTP_HASH_PASSWORD = 1
+            self.HTTP_HASHED_PASSWORD = 1
+
+            self.CONFIG_VERSION = 20

@@ -19,8 +19,8 @@ from __future__ import unicode_literals
 from future.builtins import next
 from future.builtins import str
 from future.builtins import object
+from future.moves.urllib.parse import unquote
 
-import base64
 import json
 
 import plexpy
@@ -32,6 +32,7 @@ if plexpy.PYTHON2:
     import users
     import pmsconnect
     import session
+    from plex import Plex
 else:
     from plexpy import common
     from plexpy import helpers
@@ -40,6 +41,7 @@ else:
     from plexpy import users
     from plexpy import pmsconnect
     from plexpy import session
+    from plexpy.plex import Plex
 
 
 def get_server_resources(return_presence=False, return_server=False, return_info=False, **kwargs):
@@ -170,70 +172,6 @@ class PlexTV(object):
                                                         ssl_verify=self.ssl_verify,
                                                         headers=headers)
 
-    def get_plex_auth(self, output_format='raw'):
-        uri = '/api/v2/users/signin'
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                   'Accept': 'application/xml'}
-        data = {'login': self.username,
-                'password': self.password,
-                'rememberMe': True}
-
-        request = self.request_handler.make_request(uri=uri,
-                                                    request_type='POST',
-                                                    headers=headers,
-                                                    data=data,
-                                                    output_format=output_format,
-                                                    no_token=True,
-                                                    encode_multipart=False)
-
-        return request
-
-    def get_token(self):
-        plextv_response = self.get_plex_auth(output_format='xml')
-
-        if plextv_response:
-            try:
-                xml_head = plextv_response.getElementsByTagName('user')
-                if xml_head:
-                    user = {'auth_token': xml_head[0].getAttribute('authToken'),
-                            'user_id': xml_head[0].getAttribute('id')
-                            }
-                else:
-                    logger.warn("Tautulli PlexTV :: Could not get Plex authentication token.")
-            except Exception as e:
-                logger.warn("Tautulli PlexTV :: Unable to parse XML for get_token: %s." % e)
-                return None
-
-            return user
-        else:
-            return None
-
-    def get_plexpy_pms_token(self, force=False):
-        if force:
-            logger.debug("Tautulli PlexTV :: Forcing refresh of Plex.tv token.")
-            devices_list = self.get_devices_list()
-            device_id = next((d for d in devices_list if d['device_identifier'] == plexpy.CONFIG.PMS_UUID), {}).get('device_id', None)
-
-            if device_id:
-                logger.debug("Tautulli PlexTV :: Removing Tautulli from Plex.tv devices.")
-                try:
-                    self.delete_plextv_device(device_id=device_id)
-                except:
-                    logger.error("Tautulli PlexTV :: Failed to remove Tautulli from Plex.tv devices.")
-                    return None
-            else:
-                logger.warn("Tautulli PlexTV :: No existing Tautulli device found.")
-
-        logger.info("Tautulli PlexTV :: Fetching a new Plex.tv token for Tautulli.")
-        user = self.get_token()
-        if user:
-            token = user['auth_token']
-            plexpy.CONFIG.__setattr__('PMS_TOKEN', token)
-            plexpy.CONFIG.write()
-            logger.info("Tautulli PlexTV :: Updated Plex.tv token for Tautulli.")
-            return token
-
-
     def get_server_token(self):
         servers = self.get_plextv_resources(output_format='xml')
         server_token = ''
@@ -290,14 +228,6 @@ class PlexTV(object):
 
         else:
             return None
-
-    def get_plextv_user_data(self):
-        plextv_response = self.get_plex_auth(output_format='dict')
-
-        if plextv_response:
-            return plextv_response
-        else:
-            return []
 
     def get_plextv_friends(self, output_format=''):
         uri = '/api/users'
@@ -385,11 +315,11 @@ class PlexTV(object):
 
         return request
 
-    def delete_plextv_sync(self, client_id='', sync_id='', output_format=''):
+    def delete_plextv_sync(self, client_id='', sync_id=''):
         uri = '/devices/%s/sync_items/%s' % (client_id, sync_id)
         request = self.request_handler.make_request(uri=uri,
                                                     request_type='DELETE',
-                                                    output_format=output_format)
+                                                    return_response=True)
 
         return request
 
@@ -556,11 +486,26 @@ class PlexTV(object):
                 sync_item = synced.getElementsByTagName('SyncItem')
                 for item in sync_item:
 
+                    sync_media_type = None
+                    rating_key = None
                     for location in item.getElementsByTagName('Location'):
-                        clean_uri = helpers.get_xml_attr(location, 'uri').split('%2F')
+                        location_uri = unquote(helpers.get_xml_attr(location, 'uri'))
 
-                    rating_key = next((clean_uri[(idx + 1) % len(clean_uri)]
-                                       for idx, item in enumerate(clean_uri) if item == 'metadata'), None)
+                        if location_uri.startswith('library://'):
+                            if 'collection' in location_uri:
+                                sync_media_type = 'collection'
+                            clean_uri = location_uri.split('/')
+                            rating_key = next((j for i, j in zip(clean_uri[:-1], clean_uri[1:])
+                                              if i in ('metadata', 'collections')), None)
+
+                        elif location_uri.startswith('playlist://'):
+                            sync_media_type = 'playlist'
+                            tokens = users.Users().get_tokens(user_id=device_user_id)
+                            if tokens['server_token']:
+                                plex = Plex(token=tokens['server_token'])
+                                for playlist in plex.PlexServer.playlists():
+                                    if location_uri.endswith(playlist.guid):
+                                        rating_key = str(playlist.ratingKey)  # String for backwards consistency
 
                     # Filter by rating_key
                     if rating_key_filter and rating_key not in rating_key_filter:
@@ -622,7 +567,8 @@ class PlexTV(object):
                                     "total_size": status_total_size,
                                     "failure": status_failure,
                                     "client_id": client_id,
-                                    "sync_id": sync_id
+                                    "sync_id": sync_id,
+                                    "sync_media_type": sync_media_type
                                     }
 
                     synced_items.append(sync_details)
@@ -631,7 +577,8 @@ class PlexTV(object):
 
     def delete_sync(self, client_id, sync_id):
         logger.info("Tautulli PlexTV :: Deleting sync item '%s'." % sync_id)
-        self.delete_plextv_sync(client_id=client_id, sync_id=sync_id)
+        response = self.delete_plextv_sync(client_id=client_id, sync_id=sync_id)
+        return response.ok
 
     def get_server_connections(self, pms_identifier='', pms_ip='', pms_port=32400, include_https=True):
 

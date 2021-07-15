@@ -1,5 +1,186 @@
 # Changelog
 
+# v2.7.5 (2021-07-15)
+
+* History:
+  * Fix: Guest users were unable to view history.
+  * Fix: Most Active Library statistics was counting deleted libraries.
+* Newsletters:
+  * Fix: Incorrect padding on the newsletter configuration modal.
+* Mobile App:
+  * New: Tautulli Remote App is out of beta on Android. The iOS app is available for beta testing on TestFlight.
+* API:
+  * New: Added mobile device platform and version to device registration.
+* Other:
+  * Fix: Unable to remove authentication.
+  * Change: Improve API key and device token security on Python 3.
+  * Remove: Basic Authentication setting.
+
+
+# v2.7.4 (2021-06-19)
+
+* Activity:
+  * Fix: Incorrect quality profile shown on the activity card.
+* Notifications:
+  * New: Added ability to evaluate Python expressions in notification parameters.
+  * New: Added tilde (~) to represent blank notification condition values.
+* Exporter:
+  * Fix: Blank fields missing from csv and json exports. 
+  * New: Added some new exporter fields.
+* Graphs:
+  * Fix: Play counts and durations not matching the homepage statistics.
+* UI:
+  * New: Show search bar in the collapsed menu on the mobile layout. (#1446)
+  * Change: Do not show seconds for total played duration on Users and Libraries tables.
+* Other:
+  * Fix: Check the Tautulli data folder is writable on startup. (#1441)
+  * New: Update PlexAPI to 4.6.1.
+  * Change: Always hash HTTP password in config file.
+
+
+## v2.7.3 (2021-05-22)
+
+* Activity:
+  * Fix: Incorrect quality profile being shown when transcoding to a higher bitrate.
+* Notifications:
+  * New: Added notification parameters for duration values in seconds. (#1434)
+  * New: Added setting to allow repeat Tautulli update notifications. By default the Tautulli update notification will only notify once.
+  * New: Added setting to allow repeat Plex Media Server update notifications. By default the Plex Media Server update notification will only notify once.
+  * New: Added setting to configure the Tautulli update check interval.
+* UI:
+  * Fix: Prevent accidentally closing modals when dragging the mouse outside the window.
+  * Fix: Recently added queue modal not loading. (#1429)
+  * New: Show collections tab in music libraries. (#1421)
+  * New: Added method to logout of active Tautulli sessions from the login logs.
+* API:
+  * Fix: Update edit_user and edit_library doc strings for required parameters. (#1432)
+* Other:
+  * New: Added advanced hidden setting for CherryPy thread pool size. (Thanks @psaab #1425)
+
+
+## v2.7.2 (2021-04-24)
+
+* UI:
+  * New: Show smart collections in the library collections tab.
+
+
+## v2.7.1 (2021-04-22)
+
+* Notifications:
+  * Fix: Recently added single episode being sent as a show notification. (#1420)
+* Newsletters:
+  * Change: Ignore items with incorrect added at dates in the future.
+* Exporter:
+  * Fix: Exporting not working for libraries, collections, and playlists. (#1408)
+* UI:
+  * Fix: Collections and playlist tabs not loading on library and user pages. (#1408)
+  * Fix: Header overlapping graphs tabs on mobile layout. 
+  * Change: Rename "Plays by Period" graph tab to "Media Type".
+  * Removed: Clear logs button removed from main Tautulli logs.
+
+
+## v2.7.0 (2021-04-10)
+
+* History:
+  * New: Added transcode decision filter added to history tables.
+  * New: History table filters changed to allow multiple selections.
+* Notifications:
+  * Fix: Recently added notifications failing due to metadata not being available yet on the Plex server. (#1392)
+  * New: Added separate SSL/TLS support for Email notifications.
+  * New: Added notification image type setting for Tautulli Remote App notifications.
+  * New: Added guid notification parameter.
+  * New: Added a Plex server down notification threshold setting.
+* Newsletters:
+  * Fix: Newsletters would fail if an episode was missing a season number.
+* UI:
+  * Fix: Fixed spacing of rating images on the media info pages.
+  * Fix: Fixed refreshing cached image in the browser.
+  * Fix: Bootstrap tooltips logging javascript errors in some instances.
+  * Fix: Activity card progress bar not filling at 100%. (#1404)
+  * New: Added blurred background to the Most Active Users statistics card.
+  * New: Added transcode decision filter for all history tables.
+  * New: Added an error popup message if the Plex.tv token is no longer valid when visiting the settings page.
+  * New: Added Amazon Alexa platform logo.
+  * Change: Improved loading times for the homepage watch statistics.
+  * Change: Improved loading times for user and library watch time statistics.
+  * Change: Improved loading of the graph's history modal popup.
+  * Change: Automatically trim trailing slashes from the Tautulli Public Domain setting.
+  * Change: Renamed the Plex Media Server "Use SSL" setting to "Use Secure Connection".
+  * Change: Update Microsoft Edge platform logo.
+  * Change: Consider link local IP addresses as local addresses.
+  * Change: Reveal token fields if they are blank to make it easier to input new values.
+* Mobile App:
+  * New: Accept disabled OneSignal ID during device registration.
+* API:
+  * New: Added user fallback image option to the pms_image_proxy command.
+  * New: Added optional include_last_seen parameter to the get_user command.
+  * New: Added optional include_last_accessed parameter to the get_library command.
+  * New: Allow comma separated filter values for the get_history command.
+* Other:
+  * Fix: Importing the newsletter table would fail when manually repairing a corrupted database.
+  * Fix: Make fix match in Tautulli for music case-insensitive.
+  * New: Update PlexAPI to 4.5.2.
+  * Change: Migrate section_id from the session_history_metadata database table to session_history.
+  * Change: Copy the database file to the cache folder when importing a database using the browse option.
+  * Change: Delete the cached database file after successfully importing.
+
+
+## v2.6.10 (2021-03-17)
+
+* Other:
+  * Fix: Configuration upgrade would fail if the Most Active User card was disabled. (#1395)
+
+
+## v2.6.9 (2021-03-17)
+
+* Notifications:
+  * New: Added tautulli_update_exe and tautulli_update_exe notification parameters for Tautulli update notifications.
+* Exporter:
+  * New: Added new TV show export fields for the beta Plex TV agent.
+* UI:
+  * Fix: Some popover images not showing up on hover. (#1391)
+  * Remove: HTTP Host setting removed from the UI. This setting may still be changed in the config file.
+  * New: Added a Most Active Libraries statistics card to the homepage. (Thanks @herby2212) 
+  * New: Mask sensitive text fields in the settings. Settings can be revealed by clicking on the eye icon.
+* Mobile App:
+  * Change: Make OneSignal validation asynchronous to help timeout issues when registering a device.
+* API:
+  * Added top_libraries stat_id option to get_home_stats API commaand.
+* Ohter:
+  * New: Updated PlexAPI to 4.4.1.
+
+
+## v2.6.8 (2021-03-08)
+
+* Mobile App:
+  * New: An all new Tautulli Remote App 2.0. Go to the Google Play link in the settings to download the new version.
+  * Fix: Registering the new app would fail if OneSignal is blocked.
+
+
+## v2.6.7 (2021-03-07)
+
+* History:
+  * New: Added audio language to detailed stream info. (Thanks @herby2212)
+* Notifications:
+  * New: Added season_name notification parameter.
+  * New: Update notifications to support custom season titles.
+* Newsletters:
+  * New: Update recently added newsletter template to support custom season titles.
+* Exporter:
+  * New: Added originalTitle and bannerFile to TV show export fields.
+* UI:
+  * New: Added TVDB rating image to info page for the new Plex TV agent.
+  * New: Update the UI to support custom season titles.
+* API:
+  * Fix: Return rating key for collections/playlists in get_synced_items.
+  * Fix: Return error when delete_synced_item fails.
+  * New: Return sync_media_type for collections/playlist in get_synced_items.
+  * New: Update pms_image_proxy to support playlist composite images.
+* Other:
+  * Remove: Auto-updater for the Windows exe installer due to it being flagged by antivirus software.
+  * New: Updated PlexAPI to 4.4.0.
+
+
 ## v2.6.6 (2021-02-06)
 
 * Exporter:

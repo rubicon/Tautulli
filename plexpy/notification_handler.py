@@ -113,7 +113,8 @@ def add_notifier_each(notifier_id=None, notify_action=None, stream_data=None, ti
         # Check if notification conditions are satisfied
         conditions = notify_conditions(notify_action=notify_action,
                                        stream_data=stream_data,
-                                       timeline_data=timeline_data)
+                                       timeline_data=timeline_data,
+                                       **kwargs)
     else:
         conditions = True
 
@@ -158,11 +159,11 @@ def add_notifier_each(notifier_id=None, notify_action=None, stream_data=None, ti
         plexpy.NOTIFY_QUEUE.put({'stream_data': stream_data.copy(), 'notify_action': 'on_newdevice'})
 
 
-def notify_conditions(notify_action=None, stream_data=None, timeline_data=None):
+def notify_conditions(notify_action=None, stream_data=None, timeline_data=None, **kwargs):
+    logger.debug("Tautulli NotificationHandler :: Checking global notification conditions.")
+
     # Activity notifications
     if stream_data:
-        logger.debug("Tautulli NotificationHandler :: Checking global notification conditions.")
-
         # Check if notifications enabled for user and library
         # user_data = users.Users()
         # user_details = user_data.get_details(user_id=stream_data['user_id'])
@@ -218,7 +219,6 @@ def notify_conditions(notify_action=None, stream_data=None, timeline_data=None):
         else:
             evaluated = False
 
-        logger.debug("Tautulli NotificationHandler :: Global notification conditions evaluated to '{}'.".format(evaluated))
     # Recently Added notifications
     elif timeline_data:
 
@@ -232,10 +232,23 @@ def notify_conditions(notify_action=None, stream_data=None, timeline_data=None):
 
         evaluated = True
 
+    elif notify_action == 'on_pmsupdate':
+        evaluated = True
+        if not plexpy.CONFIG.NOTIFY_SERVER_UPDATE_REPEAT:
+            evaluated = not check_nofity_tag(notify_action=notify_action,
+                                             tag=kwargs['pms_download_info']['version'])
+
+    elif notify_action == 'on_plexpyupdate':
+        evaluated = True
+        if not plexpy.CONFIG.NOTIFY_PLEXPY_UPDATE_REPEAT:
+            evaluated = not check_nofity_tag(notify_action=notify_action,
+                                             tag=kwargs['plexpy_download_info']['tag_name'])
+
     # Server notifications
     else:
         evaluated = True
 
+    logger.debug("Tautulli NotificationHandler :: Global notification conditions evaluated to '{}'.".format(evaluated))
     return evaluated
 
 
@@ -282,7 +295,7 @@ def notify_custom_conditions(notifier_id=None, parameters=None):
             # Cast the condition values to the correct type
             try:
                 if parameter_type == 'str':
-                    values = [str(v).lower() for v in values]
+                    values = ['' if v == '~' else str(v).lower() for v in values]
 
                 elif parameter_type == 'int':
                     values = [helpers.cast_to_int(v) for v in values]
@@ -398,7 +411,8 @@ def notify(notifier_id=None, notify_action=None, stream_data=None, timeline_data
                                        notify_action=notify_action,
                                        subject=subject,
                                        body=body,
-                                       script_args=script_args)
+                                       script_args=script_args,
+                                       parameters=parameters)
 
     # Send the notification
     success = notifiers.send_notification(notifier_id=notifier_config['id'],
@@ -456,7 +470,7 @@ def get_notify_state_enabled(session, notify_action, notified=True):
     return result
 
 
-def set_notify_state(notifier, notify_action, subject='', body='', script_args='', session=None):
+def set_notify_state(notifier, notify_action, subject='', body='', script_args='', session=None, parameters=None):
 
     if notifier and notify_action:
         monitor_db = database.MonitorDatabase()
@@ -481,6 +495,11 @@ def set_notify_state(notifier, notify_action, subject='', body='', script_args='
                   'body_text': body,
                   'script_args': script_args}
 
+        if notify_action == 'on_pmsupdate':
+            values['tag'] = parameters['update_version']
+        elif notify_action == 'on_plexpyupdate':
+            values['tag'] = parameters['tautulli_update_version']
+
         monitor_db.upsert(table_name='notify_log', key_dict=keys, value_dict=values)
         return monitor_db.last_insert_id()
     else:
@@ -493,6 +512,14 @@ def set_notify_success(notification_id):
 
     monitor_db = database.MonitorDatabase()
     monitor_db.upsert(table_name='notify_log', key_dict=keys, value_dict=values)
+
+
+def check_nofity_tag(notify_action, tag):
+    monitor_db = database.MonitorDatabase()
+    result = monitor_db.select_single('SELECT * FROM notify_log '
+                                      'WHERE notify_action = ? AND tag = ?',
+                                      [notify_action, tag])
+    return bool(result)
 
 
 def build_media_notify_params(notify_action=None, session=None, timeline=None, manual_trigger=False, **kwargs):
@@ -546,9 +573,13 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
 
     child_metadata = grandchild_metadata = []
     for key in kwargs.pop('child_keys', []):
-        child_metadata.append(pmsconnect.PmsConnect().get_metadata_details(rating_key=key))
+        child = pmsconnect.PmsConnect().get_metadata_details(rating_key=key)
+        if child:
+            child_metadata.append(child)
     for key in kwargs.pop('grandchild_keys', []):
-        grandchild_metadata.append(pmsconnect.PmsConnect().get_metadata_details(rating_key=key))
+        grandchild = pmsconnect.PmsConnect().get_metadata_details(rating_key=key)
+        if grandchild:
+            grandchild_metadata.append(grandchild)
 
     # Session values
     session = session or {}
@@ -581,14 +612,24 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
     user_transcode_decision_count = Counter(s['transcode_decision'] for s in user_sessions)
 
     if notify_action != 'on_play':
-        stream_duration = int((time.time() -
-                               helpers.cast_to_int(session.get('started', 0)) -
-                               helpers.cast_to_int(session.get('paused_counter', 0))) / 60)
+        stream_duration_sec = int(
+            (
+                helpers.timestamp()
+                - helpers.cast_to_int(session.get('started', 0))
+                - helpers.cast_to_int(session.get('paused_counter', 0))
+            )
+        )
+        stream_duration = helpers.seconds_to_minutes(stream_duration_sec)
     else:
+        stream_duration_sec = 0
         stream_duration = 0
 
-    view_offset = helpers.convert_milliseconds_to_minutes(session.get('view_offset', 0))
-    duration = helpers.convert_milliseconds_to_minutes(notify_params['duration'])
+    view_offset_sec = helpers.convert_milliseconds_to_seconds(session.get('view_offset', 0))
+    duration_sec = helpers.convert_milliseconds_to_seconds(notify_params['duration'])
+    remaining_duration_sec = duration_sec - view_offset_sec
+
+    view_offset = helpers.seconds_to_minutes(view_offset_sec)
+    duration = helpers.seconds_to_minutes(duration_sec)
     remaining_duration = duration - view_offset
 
     # Build Plex URL
@@ -648,7 +689,14 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
     # Get TheMovieDB info (for movies and tv only)
     if plexpy.CONFIG.THEMOVIEDB_LOOKUP and notify_params['media_type'] in ('movie', 'show', 'season', 'episode'):
         if notify_params.get('themoviedb_id'):
-            themoveidb_json = get_themoviedb_info(rating_key=rating_key,
+            if notify_params['media_type'] == 'episode':
+                lookup_key = notify_params['grandparent_rating_key']
+            elif notify_params['media_type'] == 'season':
+                lookup_key = notify_params['parent_rating_key']
+            else:
+                lookup_key = rating_key
+
+            themoveidb_json = get_themoviedb_info(rating_key=lookup_key,
                                                   media_type=notify_params['media_type'],
                                                   themoviedb_id=notify_params['themoviedb_id'])
 
@@ -781,6 +829,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
     if ((manual_trigger or plexpy.CONFIG.NOTIFY_GROUP_RECENTLY_ADDED_GRANDPARENT)
         and notify_params['media_type'] in ('show', 'artist')):
         show_name = notify_params['title']
+        season_name = ''
         episode_name = ''
         artist_name = notify_params['title']
         album_name = ''
@@ -800,6 +849,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
     elif ((manual_trigger or plexpy.CONFIG.NOTIFY_GROUP_RECENTLY_ADDED_PARENT)
           and notify_params['media_type'] in ('season', 'album')):
         show_name = notify_params['parent_title']
+        season_name = notify_params['title']
         episode_name = ''
         artist_name = notify_params['parent_title']
         album_name = notify_params['title']
@@ -819,6 +869,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
 
     else:
         show_name = notify_params['grandparent_title']
+        season_name = notify_params['parent_title']
         episode_name = notify_params['title']
         artist_name = notify_params['grandparent_title']
         album_name = notify_params['parent_title']
@@ -896,12 +947,15 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
         'player': notify_params['player'],
         'ip_address': notify_params.get('ip_address', 'N/A'),
         'stream_duration': stream_duration,
-        'stream_time': arrow.get(stream_duration * 60).format(duration_format),
+        'stream_duration_sec': stream_duration_sec,
+        'stream_time': arrow.get(stream_duration_sec).format(duration_format),
         'remaining_duration': remaining_duration,
-        'remaining_time': arrow.get(remaining_duration * 60).format(duration_format),
+        'remaining_duration_sec': remaining_duration_sec,
+        'remaining_time': arrow.get(remaining_duration_sec).format(duration_format),
         'progress_duration': view_offset,
-        'progress_time': arrow.get(view_offset * 60).format(duration_format),
-        'progress_percent': helpers.get_percent(view_offset, duration),
+        'progress_duration_sec': view_offset_sec,
+        'progress_time': arrow.get(view_offset_sec).format(duration_format),
+        'progress_percent': helpers.get_percent(view_offset_sec, duration_sec),
         'initial_stream': notify_params['initial_stream'],
         'transcode_decision': transcode_decision,
         'container_decision': notify_params['container_decision'],
@@ -982,6 +1036,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
         'title': notify_params['full_title'],
         'library_name': notify_params['library_name'],
         'show_name': show_name,
+        'season_name': season_name,
         'episode_name': episode_name,
         'artist_name': artist_name,
         'album_name': album_name,
@@ -1023,6 +1078,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
         'audience_rating': audience_rating,
         'user_rating': notify_params['user_rating'],
         'duration': duration,
+        'duration_sec': duration_sec,
         'poster_title': notify_params['poster_title'],
         'poster_url': notify_params['poster_url'],
         'plex_id': notify_params['plex_id'],
@@ -1080,6 +1136,7 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
         'filename': os.path.basename(notify_params['file']),
         'file_size': helpers.human_file_size(notify_params['file_size']),
         'indexes': notify_params['indexes'],
+        'guid': notify_params['guid'],
         'section_id': notify_params['section_id'],
         'rating_key': notify_params['rating_key'],
         'parent_rating_key': notify_params['parent_rating_key'],
@@ -1091,7 +1148,8 @@ def build_media_notify_params(notify_action=None, session=None, timeline=None, m
         'poster_thumb': poster_thumb
         }
 
-    return available_params
+    notify_params.update(available_params)
+    return notify_params
 
 
 def build_server_notify_params(notify_action=None, **kwargs):
@@ -1104,6 +1162,15 @@ def build_server_notify_params(notify_action=None, **kwargs):
     pms_download_info = defaultdict(str, kwargs.pop('pms_download_info', {}))
     plexpy_download_info = defaultdict(str, kwargs.pop('plexpy_download_info', {}))
     remote_access_info = defaultdict(str, kwargs.pop('remote_access_info', {}))
+
+    windows_exe = macos_pkg = ''
+    if plexpy_download_info:
+        release_assets = plexpy_download_info.get('assets', [])
+        for asset in release_assets:
+            if asset['content_type'] == 'application/vnd.microsoft.portable-executable':
+                windows_exe = asset['browser_download_url']
+            elif asset['content_type'] == 'application/vnd.apple.installer+xml':
+                macos_pkg = asset['browser_download_url']
 
     now = arrow.now()
     now_iso = now.isocalendar()
@@ -1159,6 +1226,8 @@ def build_server_notify_params(notify_action=None, **kwargs):
         # Tautulli update parameters
         'tautulli_update_version': plexpy_download_info['tag_name'],
         'tautulli_update_release_url': plexpy_download_info['html_url'],
+        'tautulli_update_exe': windows_exe,
+        'tautulli_update_pkg': macos_pkg,
         'tautulli_update_tar': plexpy_download_info['tarball_url'],
         'tautulli_update_zip': plexpy_download_info['zipball_url'],
         'tautulli_update_commit': kwargs.pop('plexpy_update_commit', ''),
@@ -1749,6 +1818,25 @@ def str_format(s, parameters):
     return s
 
 
+def str_eval(field_name, kwargs):
+    field_name = field_name.strip('`')
+    allowed_names = {
+        'bool': bool,
+        'divmod': helpers.helper_divmod,
+        'float': helpers.cast_to_float,
+        'int': helpers.cast_to_int,
+        'len': helpers.helper_len,
+        'round': helpers.helper_round,
+        'str': str
+    }
+    allowed_names.update(kwargs)
+    code = compile(field_name, '<string>', 'eval')
+    for name in code.co_names:
+        if name not in allowed_names:
+            raise NameError('Use of {name} not allowed'.format(name=name))
+    return eval(code, {'__builtins__': {}}, allowed_names)
+
+
 class CustomFormatter(Formatter):
     def __init__(self, default='{{{0}}}'):
         self.default = default
@@ -1812,20 +1900,22 @@ class CustomFormatter(Formatter):
             prefix = None
             suffix = None
 
-            if real_format_string != format_string[1:-1]:
-                prefix_split = real_format_string.split('<')
-                if len(prefix_split) == 2:
-                    prefix = prefix_split[0].replace('\\n', '\n')
-                    real_format_string = prefix_split[1]
+            matches = re.findall(r'`.*?`', real_format_string)
+            temp_format_string = re.sub(r'`.*`', '{}', real_format_string)
 
-                suffix_split = real_format_string.split('>')
-                if len(suffix_split) == 2:
-                    suffix = suffix_split[1].replace('\\n', '\n')
-                    real_format_string = suffix_split[0]
+            prefix_split = temp_format_string.split('<')
+            if len(prefix_split) == 2:
+                prefix = prefix_split[0].replace('\\n', '\n')
+                temp_format_string = prefix_split[1]
 
-                if prefix or suffix:
-                    real_format_string = '{' + real_format_string + '}'
-                    _, field_name, format_spec, conversion, _, _ = next(self.parse(real_format_string))
+            suffix_split = temp_format_string.split('>')
+            if len(suffix_split) == 2:
+                suffix = suffix_split[1].replace('\\n', '\n')
+                temp_format_string = suffix_split[0]
+
+            if prefix or suffix:
+                real_format_string = '{' + temp_format_string.format(*matches) + '}'
+                _, field_name, format_spec, conversion, _, _ = next(self.parse(real_format_string))
 
             yield literal_text, field_name, format_spec, conversion, prefix, suffix
 
@@ -1861,10 +1951,19 @@ class CustomFormatter(Formatter):
                     # used later on, then an exception will be raised
                     auto_arg_index = False
 
-                # given the field_name, find the object it references
-                #  and the argument it came from
-                obj, arg_used = self.get_field(field_name, args, kwargs)
-                used_args.add(arg_used)
+                if plexpy.CONFIG.NOTIFY_TEXT_EVAL and field_name.startswith('`') and field_name.endswith('`'):
+                    try:
+                        obj = str_eval(field_name, kwargs)
+                        used_args.add(field_name)
+                    except (SyntaxError, NameError, ValueError, TypeError) as e:
+                        logger.error("Tautulli NotificationHandler :: Failed to evaluate notification text %s: %s.",
+                                     field_name, e)
+                        obj = field_name
+                else:
+                    # given the field_name, find the object it references
+                    #  and the argument it came from
+                    obj, arg_used = self.get_field(field_name, args, kwargs)
+                    used_args.add(arg_used)
 
                 # do any conversion on the resulting object
                 obj = self.convert_field(obj, conversion)

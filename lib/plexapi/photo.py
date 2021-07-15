@@ -4,10 +4,11 @@ from urllib.parse import quote_plus
 from plexapi import media, utils, video
 from plexapi.base import Playable, PlexPartialObject
 from plexapi.exceptions import BadRequest
+from plexapi.mixins import ArtUrlMixin, ArtMixin, PosterUrlMixin, PosterMixin, RatingMixin, TagMixin
 
 
 @utils.registerPlexObject
-class Photoalbum(PlexPartialObject):
+class Photoalbum(PlexPartialObject, ArtMixin, PosterMixin, RatingMixin):
     """ Represents a single Photoalbum (collection of photos).
 
         Attributes:
@@ -20,6 +21,7 @@ class Photoalbum(PlexPartialObject):
             guid (str): Plex GUID for the photo album (local://229674).
             index (sting): Plex index number for the photo album.
             key (str): API URL (/library/metadata/<ratingkey>).
+            lastRatedAt (datetime): Datetime the photo album was last rated.
             librarySectionID (int): :class:`~plexapi.library.LibrarySection` ID.
             librarySectionKey (str): :class:`~plexapi.library.LibrarySection` key.
             librarySectionTitle (str): :class:`~plexapi.library.LibrarySection` title.
@@ -31,7 +33,7 @@ class Photoalbum(PlexPartialObject):
             titleSort (str): Title to use when sorting (defaults to title).
             type (str): 'photo'
             updatedAt (datatime): Datetime the photo album was updated.
-            userRating (float): Rating of the photoalbum (0.0 - 10.0) equaling (0 stars - 5 stars).
+            userRating (float): Rating of the photo album (0.0 - 10.0) equaling (0 stars - 5 stars).
     """
     TAG = 'Directory'
     TYPE = 'photo'
@@ -45,7 +47,8 @@ class Photoalbum(PlexPartialObject):
         self.guid = data.attrib.get('guid')
         self.index = utils.cast(int, data.attrib.get('index'))
         self.key = data.attrib.get('key', '').replace('/children', '')  # FIX_BUG_50
-        self.librarySectionID = data.attrib.get('librarySectionID')
+        self.lastRatedAt = utils.toDatetime(data.attrib.get('lastRatedAt'))
+        self.librarySectionID = utils.cast(int, data.attrib.get('librarySectionID'))
         self.librarySectionKey = data.attrib.get('librarySectionKey')
         self.librarySectionTitle = data.attrib.get('librarySectionTitle')
         self.listType = 'photo'
@@ -56,7 +59,7 @@ class Photoalbum(PlexPartialObject):
         self.titleSort = data.attrib.get('titleSort', self.title)
         self.type = data.attrib.get('type')
         self.updatedAt = utils.toDatetime(data.attrib.get('updatedAt'))
-        self.userRating = utils.cast(float, data.attrib.get('userRating', 0))
+        self.userRating = utils.cast(float, data.attrib.get('userRating'))
 
     def album(self, title):
         """ Returns the :class:`~plexapi.photo.Photoalbum` that matches the specified title.
@@ -136,7 +139,7 @@ class Photoalbum(PlexPartialObject):
 
 
 @utils.registerPlexObject
-class Photo(PlexPartialObject, Playable):
+class Photo(PlexPartialObject, Playable, ArtUrlMixin, PosterUrlMixin, RatingMixin, TagMixin):
     """ Represents a single Photo.
 
         Attributes:
@@ -149,6 +152,7 @@ class Photo(PlexPartialObject, Playable):
             guid (str): Plex GUID for the photo (com.plexapp.agents.none://231714?lang=xn).
             index (sting): Plex index number for the photo.
             key (str): API URL (/library/metadata/<ratingkey>).
+            lastRatedAt (datetime): Datetime the photo was last rated.
             librarySectionID (int): :class:`~plexapi.library.LibrarySection` ID.
             librarySectionKey (str): :class:`~plexapi.library.LibrarySection` key.
             librarySectionTitle (str): :class:`~plexapi.library.LibrarySection` title.
@@ -163,12 +167,13 @@ class Photo(PlexPartialObject, Playable):
             parentTitle (str): Name of the photo album for the photo.
             ratingKey (int): Unique key identifying the photo.
             summary (str): Summary of the photo.
-            tag (List<:class:`~plexapi.media.Tag`>): List of tag objects.
+            tags (List<:class:`~plexapi.media.Tag`>): List of tag objects.
             thumb (str): URL to thumbnail image (/library/metadata/<ratingKey>/thumb/<thumbid>).
             title (str): Name of the photo.
             titleSort (str): Title to use when sorting (defaults to title).
             type (str): 'photo'
             updatedAt (datatime): Datetime the photo was updated.
+            userRating (float): Rating of the photo (0.0 - 10.0) equaling (0 stars - 5 stars).
             year (int): Year the photo was taken.
     """
     TAG = 'Photo'
@@ -185,7 +190,8 @@ class Photo(PlexPartialObject, Playable):
         self.guid = data.attrib.get('guid')
         self.index = utils.cast(int, data.attrib.get('index'))
         self.key = data.attrib.get('key', '')
-        self.librarySectionID = data.attrib.get('librarySectionID')
+        self.lastRatedAt = utils.toDatetime(data.attrib.get('lastRatedAt'))
+        self.librarySectionID = utils.cast(int, data.attrib.get('librarySectionID'))
         self.librarySectionKey = data.attrib.get('librarySectionKey')
         self.librarySectionTitle = data.attrib.get('librarySectionTitle')
         self.listType = 'photo'
@@ -199,19 +205,14 @@ class Photo(PlexPartialObject, Playable):
         self.parentTitle = data.attrib.get('parentTitle')
         self.ratingKey = utils.cast(int, data.attrib.get('ratingKey'))
         self.summary = data.attrib.get('summary')
-        self.tag = self.findItems(data, media.Tag)
+        self.tags = self.findItems(data, media.Tag)
         self.thumb = data.attrib.get('thumb')
         self.title = data.attrib.get('title')
         self.titleSort = data.attrib.get('titleSort', self.title)
         self.type = data.attrib.get('type')
         self.updatedAt = utils.toDatetime(data.attrib.get('updatedAt'))
+        self.userRating = utils.cast(float, data.attrib.get('userRating'))
         self.year = utils.cast(int, data.attrib.get('year'))
-
-    @property
-    def thumbUrl(self):
-        """Return URL for the thumbnail image."""
-        key = self.firstAttr('thumb', 'parentThumb', 'granparentThumb')
-        return self._server.url(key, includeToken=True) if key else None
 
     def photoalbum(self):
         """ Return the photo's :class:`~plexapi.photo.Photoalbum`. """
@@ -231,7 +232,7 @@ class Photo(PlexPartialObject, Playable):
         """ This does not exist in plex xml response but is added to have a common
             interface to get the locations of the photo.
 
-            Retruns:
+            Returns:
                 List<str> of file paths where the photo is found on disk.
         """
         return [part.file for item in self.media for part in item.parts if part]

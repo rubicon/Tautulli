@@ -21,7 +21,9 @@ from future.builtins import str
 from future.builtins import object
 from future.moves.urllib.parse import parse_qsl
 
+import arrow
 import httpagentparser
+from datetime import datetime, timedelta
 
 import plexpy
 if plexpy.PYTHON2:
@@ -359,7 +361,7 @@ class Users(object):
             except Exception as e:
                 logger.warn("Tautulli Users :: Unable to execute database query for set_config: %s." % e)
 
-    def get_details(self, user_id=None, user=None, email=None):
+    def get_details(self, user_id=None, user=None, email=None, include_last_seen=False):
         default_return = {'row_id': 0,
                           'user_id': 0,
                           'username': 'Local',
@@ -375,88 +377,15 @@ class Users(object):
                           'keep_history': 1,
                           'allow_guest': 0,
                           'deleted_user': 0,
-                          'shared_libraries': ()
+                          'shared_libraries': (),
+                          'last_seen': None
                           }
 
         if user_id is None and not user and not email:
             return default_return
 
-        def get_user_details(user_id=user_id, user=user, email=email):
-            monitor_db = database.MonitorDatabase()
-
-            try:
-                if str(user_id).isdigit():
-                    query = 'SELECT id AS row_id, user_id, username, friendly_name, ' \
-                            'thumb AS user_thumb, custom_avatar_url AS custom_thumb, ' \
-                            'email, is_active, is_admin, is_home_user, is_allow_sync, is_restricted, ' \
-                            'do_notify, keep_history, deleted_user, ' \
-                            'allow_guest, shared_libraries ' \
-                            'FROM users ' \
-                            'WHERE user_id = ? '
-                    result = monitor_db.select(query, args=[user_id])
-                elif user:
-                    query = 'SELECT id AS row_id, user_id, username, friendly_name, ' \
-                            'thumb AS user_thumb, custom_avatar_url AS custom_thumb, ' \
-                            'email, is_active, is_admin, is_home_user, is_allow_sync, is_restricted, ' \
-                            'do_notify, keep_history, deleted_user, ' \
-                            'allow_guest, shared_libraries ' \
-                            'FROM users ' \
-                            'WHERE username = ? COLLATE NOCASE '
-                    result = monitor_db.select(query, args=[user])
-                elif email:
-                    query = 'SELECT id AS row_id, user_id, username, friendly_name, ' \
-                            'thumb AS user_thumb, custom_avatar_url AS custom_thumb, ' \
-                            'email, is_active, is_admin, is_home_user, is_allow_sync, is_restricted, ' \
-                            'do_notify, keep_history, deleted_user, ' \
-                            'allow_guest, shared_libraries ' \
-                            'FROM users ' \
-                            'WHERE email = ? COLLATE NOCASE '
-                    result = monitor_db.select(query, args=[email])
-                else:
-                    result = []
-            except Exception as e:
-                logger.warn("Tautulli Users :: Unable to execute database query for get_details: %s." % e)
-                result = []
-
-            user_details = {}
-            if result:
-                for item in result:
-                    if session.get_session_user_id():
-                        friendly_name = session.get_session_user()
-                    elif item['friendly_name']:
-                        friendly_name = item['friendly_name']
-                    else:
-                        friendly_name = item['username']
-
-                    if item['custom_thumb'] and item['custom_thumb'] != item['user_thumb']:
-                        user_thumb = item['custom_thumb']
-                    elif item['user_thumb']:
-                        user_thumb = item['user_thumb']
-                    else:
-                        user_thumb = common.DEFAULT_USER_THUMB
-
-                    shared_libraries = tuple(item['shared_libraries'].split(';')) if item['shared_libraries'] else ()
-
-                    user_details = {'row_id': item['row_id'],
-                                    'user_id': item['user_id'],
-                                    'username': item['username'],
-                                    'friendly_name': friendly_name,
-                                    'user_thumb': user_thumb,
-                                    'email': item['email'],
-                                    'is_active': item['is_active'],
-                                    'is_admin': item['is_admin'],
-                                    'is_home_user': item['is_home_user'],
-                                    'is_allow_sync': item['is_allow_sync'],
-                                    'is_restricted': item['is_restricted'],
-                                    'do_notify': item['do_notify'],
-                                    'keep_history': item['keep_history'],
-                                    'deleted_user': item['deleted_user'],
-                                    'allow_guest': item['allow_guest'],
-                                    'shared_libraries': shared_libraries
-                                    }
-            return user_details
-
-        user_details = get_user_details(user_id=user_id, user=user)
+        user_details = self.get_user_details(user_id=user_id, user=user, email=email,
+                                             include_last_seen=include_last_seen)
 
         if user_details:
             return user_details
@@ -467,7 +396,8 @@ class Users(object):
             # Let's first refresh the user list to make sure the user isn't newly added and not in the db yet
             refresh_users()
 
-            user_details = get_user_details(user_id=user_id, user=user)
+            user_details = self.get_user_details(user_id=user_id, user=user, email=email,
+                                                 include_last_seen=include_last_seen)
 
             if user_details:
                 return user_details
@@ -479,6 +409,79 @@ class Users(object):
                 # Use "Local" user to retain compatibility with PlexWatch database value
                 return default_return
 
+    def get_user_details(self, user_id=None, user=None, email=None, include_last_seen=False):
+        last_seen = 'NULL'
+        join = ''
+        if include_last_seen:
+            last_seen = 'MAX(session_history.started)'
+            join = 'LEFT OUTER JOIN session_history ON users.user_id = session_history.user_id'
+
+        monitor_db = database.MonitorDatabase()
+
+        try:
+            if str(user_id).isdigit():
+                where = 'users.user_id = ?'
+                args = [user_id]
+            elif user:
+                where = 'users.username = ?'
+                args = [user]
+            elif email:
+                where = 'users.email = ?'
+                args = [email]
+            else:
+                raise Exception('Missing user_id, username, or email')
+
+            query = 'SELECT users.id AS row_id, users.user_id, username, friendly_name, ' \
+                    'thumb AS user_thumb, custom_avatar_url AS custom_thumb, ' \
+                    'email, is_active, is_admin, is_home_user, is_allow_sync, is_restricted, ' \
+                    'do_notify, keep_history, deleted_user, ' \
+                    'allow_guest, shared_libraries, %s AS last_seen ' \
+                    'FROM users %s ' \
+                    'WHERE %s COLLATE NOCASE' % (last_seen, join, where)
+            result = monitor_db.select(query, args=args)
+        except Exception as e:
+            logger.warn("Tautulli Users :: Unable to execute database query for get_user_details: %s." % e)
+            result = []
+
+        user_details = {}
+        if result:
+            for item in result:
+                if session.get_session_user_id():
+                    friendly_name = session.get_session_user()
+                elif item['friendly_name']:
+                    friendly_name = item['friendly_name']
+                else:
+                    friendly_name = item['username']
+
+                if item['custom_thumb'] and item['custom_thumb'] != item['user_thumb']:
+                    user_thumb = item['custom_thumb']
+                elif item['user_thumb']:
+                    user_thumb = item['user_thumb']
+                else:
+                    user_thumb = common.DEFAULT_USER_THUMB
+
+                shared_libraries = tuple(item['shared_libraries'].split(';')) if item['shared_libraries'] else ()
+
+                user_details = {'row_id': item['row_id'],
+                                'user_id': item['user_id'],
+                                'username': item['username'],
+                                'friendly_name': friendly_name,
+                                'user_thumb': user_thumb,
+                                'email': item['email'],
+                                'is_active': item['is_active'],
+                                'is_admin': item['is_admin'],
+                                'is_home_user': item['is_home_user'],
+                                'is_allow_sync': item['is_allow_sync'],
+                                'is_restricted': item['is_restricted'],
+                                'do_notify': item['do_notify'],
+                                'keep_history': item['keep_history'],
+                                'deleted_user': item['deleted_user'],
+                                'allow_guest': item['allow_guest'],
+                                'shared_libraries': shared_libraries,
+                                'last_seen': item['last_seen']
+                                }
+        return user_details
+
     def get_watch_time_stats(self, user_id=None, grouping=None, query_days=None):
         if not session.allow_session_user(user_id):
             return []
@@ -487,9 +490,11 @@ class Users(object):
             grouping = plexpy.CONFIG.GROUP_HISTORY_TABLES
 
         if query_days and query_days is not None:
-            query_days = map(helpers.cast_to_int, query_days.split(','))
+            query_days = map(helpers.cast_to_int, str(query_days).split(','))
         else:
             query_days = [1, 7, 30, 0]
+
+        timestamp = helpers.timestamp()
 
         monitor_db = database.MonitorDatabase()
 
@@ -498,6 +503,8 @@ class Users(object):
         group_by = 'reference_id' if grouping else 'id'
 
         for days in query_days:
+            timestamp_query = timestamp - days * 24 * 60 * 60
+
             try:
                 if days > 0:
                     if str(user_id).isdigit():
@@ -505,8 +512,8 @@ class Users(object):
                                 '   SUM(CASE WHEN paused_counter IS NULL THEN 0 ELSE paused_counter END)) AS total_time, ' \
                                 'COUNT(DISTINCT %s) AS total_plays ' \
                                 'FROM session_history ' \
-                                'WHERE datetime(stopped, "unixepoch", "localtime") >= datetime("now", "-%s days", "localtime") ' \
-                                'AND user_id = ? ' % (group_by, days)
+                                'WHERE stopped >= %s ' \
+                                'AND user_id = ? ' % (group_by, timestamp_query)
                         result = monitor_db.select(query, args=[user_id])
                     else:
                         result = []
@@ -845,10 +852,14 @@ class Users(object):
 
         return filters_list
 
-    def set_user_login(self, user_id=None, user=None, user_group=None, ip_address=None, host=None, user_agent=None, success=0):
+    def set_user_login(self, user_id=None, user=None, user_group=None, ip_address=None, host=None,
+                       user_agent=None, success=0, expiry=None, jwt_token=None):
 
         if user_id is None or str(user_id).isdigit():
             monitor_db = database.MonitorDatabase()
+
+            if expiry is not None:
+                expiry = helpers.datetime_to_iso(expiry)
 
             keys = {'timestamp': helpers.timestamp(),
                     'user_id': user_id}
@@ -858,14 +869,49 @@ class Users(object):
                       'ip_address': ip_address,
                       'host': host,
                       'user_agent': user_agent,
-                      'success': success}
+                      'success': success,
+                      'expiry': expiry,
+                      'jwt_token': jwt_token}
 
             try:
                 monitor_db.upsert(table_name='user_login', key_dict=keys, value_dict=values)
             except Exception as e:
                 logger.warn("Tautulli Users :: Unable to execute database query for set_login_log: %s." % e)
 
-    def get_datatables_user_login(self, user_id=None, kwargs=None):
+    def get_user_login(self, jwt_token):
+        monitor_db = database.MonitorDatabase()
+        result = monitor_db.select_single('SELECT * FROM user_login '
+                                          'WHERE jwt_token = ?',
+                                          [jwt_token])
+        return result
+
+    def clear_user_login_token(self, jwt_token=None, row_ids=None):
+        monitor_db = database.MonitorDatabase()
+
+        if jwt_token:
+            logger.debug("Tautulli Users :: Clearing user JWT token.")
+            try:
+                monitor_db.action('UPDATE user_login SET jwt_token = NULL '
+                                  'WHERE jwt_token = ?',
+                                  [jwt_token])
+            except Exception as e:
+                logger.error("Tautulli Users :: Unable to clear user JWT token: %s.", e)
+                return False
+
+        elif row_ids and row_ids is not None:
+            row_ids = list(map(helpers.cast_to_int, row_ids.split(',')))
+            logger.debug("Tautulli Users :: Clearing JWT tokens for row_ids %s.", row_ids)
+            try:
+                monitor_db.action('UPDATE user_login SET jwt_token = NULL '
+                                  'WHERE id in ({})'.format(','.join(['?'] * len(row_ids))),
+                                  row_ids)
+            except Exception as e:
+                logger.error("Tautulli Users :: Unable to clear JWT tokens: %s.", e)
+                return False
+
+        return True
+
+    def get_datatables_user_login(self, user_id=None, jwt_token=None, kwargs=None):
         default_return = {'recordsFiltered': 0,
                           'recordsTotal': 0,
                           'draw': 0,
@@ -881,7 +927,8 @@ class Users(object):
         else:
             custom_where = [['user_login.user_id', user_id]] if user_id else []
 
-        columns = ['user_login.timestamp',
+        columns = ['user_login.id AS row_id',
+                   'user_login.timestamp',
                    'user_login.user_id',
                    'user_login.user',
                    'user_login.user_group',
@@ -889,6 +936,8 @@ class Users(object):
                    'user_login.host',
                    'user_login.user_agent',
                    'user_login.success',
+                   'user_login.expiry',
+                   'user_login.jwt_token',
                    '(CASE WHEN users.friendly_name IS NULL OR TRIM(users.friendly_name) = "" \
                     THEN users.username ELSE users.friendly_name END) AS friendly_name'
                    ]
@@ -912,7 +961,16 @@ class Users(object):
         for item in results:
             (os, browser) = httpagentparser.simple_detect(item['user_agent'])
 
-            row = {'timestamp': item['timestamp'],
+            expiry = None
+            current = False
+            if item['jwt_token'] and item['expiry']:
+                _expiry = helpers.iso_to_datetime(item['expiry'])
+                if _expiry > arrow.now():
+                    expiry = _expiry.strftime('%Y-%m-%d %H:%M:%S')
+                current = (item['jwt_token'] == jwt_token)
+
+            row = {'row_id': item['row_id'],
+                   'timestamp': item['timestamp'],
                    'user_id': item['user_id'],
                    'user_group': item['user_group'],
                    'ip_address': item['ip_address'],
@@ -921,6 +979,8 @@ class Users(object):
                    'os': os,
                    'browser': browser,
                    'success': item['success'],
+                   'expiry': expiry,
+                   'current': current,
                    'friendly_name': item['friendly_name'] or item['user']
                    }
 

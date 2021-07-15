@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 # This file is part of Tautulli.
 #
@@ -113,7 +113,7 @@ class PmsConnect(object):
 
         return request
 
-    def get_sessions_terminate(self, session_id='', reason='', output_format=''):
+    def get_sessions_terminate(self, session_id='', reason=''):
         """
         Return current sessions.
 
@@ -124,7 +124,7 @@ class PmsConnect(object):
         uri = '/status/sessions/terminate?sessionId=%s&reason=%s' % (session_id, quote_plus(reason))
         request = self.request_handler.make_request(uri=uri,
                                                     request_type='GET',
-                                                    output_format=output_format)
+                                                    return_response=True)
 
         return request
 
@@ -144,7 +144,7 @@ class PmsConnect(object):
 
         return request
 
-    def get_metadata_children(self, rating_key='', output_format=''):
+    def get_metadata_children(self, rating_key='', collection=False, output_format=''):
         """
         Return metadata for children of the request item.
 
@@ -153,7 +153,9 @@ class PmsConnect(object):
 
         Output: array
         """
-        uri = '/library/metadata/' + rating_key + '/children'
+        uri = '/library/{}/{}/children'.format(
+            'collections' if collection else 'metadata', rating_key
+        )
         request = self.request_handler.make_request(uri=uri,
                                                     request_type='GET',
                                                     output_format=output_format)
@@ -889,7 +891,7 @@ class PmsConnect(object):
                         'collections': show_details.get('collections', []),
                         'guids': show_details.get('guids', []),
                         'full_title': '{} - {}'.format(helpers.get_xml_attr(metadata_main, 'parentTitle'),
-                                                        helpers.get_xml_attr(metadata_main, 'title')),
+                                                       helpers.get_xml_attr(metadata_main, 'title')),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'leafCount')),
                         'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
                         }
@@ -925,7 +927,7 @@ class PmsConnect(object):
                         'parent_rating_key': parent_rating_key,
                         'grandparent_rating_key': helpers.get_xml_attr(metadata_main, 'grandparentRatingKey'),
                         'title': helpers.get_xml_attr(metadata_main, 'title'),
-                        'parent_title': 'Season %s' % helpers.get_xml_attr(metadata_main, 'parentIndex'),
+                        'parent_title': helpers.get_xml_attr(metadata_main, 'parentTitle'),
                         'grandparent_title': helpers.get_xml_attr(metadata_main, 'grandparentTitle'),
                         'original_title': helpers.get_xml_attr(metadata_main, 'originalTitle'),
                         'sort_title': helpers.get_xml_attr(metadata_main, 'titleSort'),
@@ -962,7 +964,7 @@ class PmsConnect(object):
                         'collections': show_details.get('collections', []),
                         'guids': show_details.get('guids', []),
                         'full_title': '{} - {}'.format(helpers.get_xml_attr(metadata_main, 'grandparentTitle'),
-                                                        helpers.get_xml_attr(metadata_main, 'title')),
+                                                       helpers.get_xml_attr(metadata_main, 'title')),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'leafCount')),
                         'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
                         }
@@ -1063,7 +1065,7 @@ class PmsConnect(object):
                         'collections': collections,
                         'guids': guids,
                         'full_title': '{} - {}'.format(helpers.get_xml_attr(metadata_main, 'parentTitle'),
-                                                        helpers.get_xml_attr(metadata_main, 'title')),
+                                                       helpers.get_xml_attr(metadata_main, 'title')),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'leafCount')),
                         'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
                         }
@@ -1117,7 +1119,7 @@ class PmsConnect(object):
                         'collections': album_details.get('collections', []),
                         'guids': album_details.get('guids', []),
                         'full_title': '{} - {}'.format(helpers.get_xml_attr(metadata_main, 'title'),
-                                                        track_artist),
+                                                       track_artist),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'leafCount')),
                         'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
                         }
@@ -1218,7 +1220,7 @@ class PmsConnect(object):
                         'collections': photo_album_details.get('collections', []),
                         'guids': photo_album_details.get('guids', []),
                         'full_title': '{} - {}'.format(helpers.get_xml_attr(metadata_main, 'parentTitle') or library_name,
-                                                        helpers.get_xml_attr(metadata_main, 'title')),
+                                                       helpers.get_xml_attr(metadata_main, 'title')),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'leafCount')),
                         'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
                         }
@@ -1273,7 +1275,8 @@ class PmsConnect(object):
                         'guids': guids,
                         'full_title': helpers.get_xml_attr(metadata_main, 'title'),
                         'children_count': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'childCount')),
-                        'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1')
+                        'live': int(helpers.get_xml_attr(metadata_main, 'live') == '1'),
+                        'smart': helpers.cast_to_int(helpers.get_xml_attr(metadata_main, 'smart'))
                         }
 
         elif metadata_type == 'playlist':
@@ -2163,7 +2166,7 @@ class PmsConnect(object):
                     synced_version_profile = common.VIDEO_QUALITY_PROFILES[synced_bitrate]
                 except ValueError:
                     synced_version_profile = 'Original'
-            else:
+            elif video_details['stream_video_decision'] == 'transcode':
                 synced_version_profile = ''
 
                 stream_bitrate = helpers.cast_to_int(stream_details['stream_bitrate'])
@@ -2174,6 +2177,9 @@ class PmsConnect(object):
                     quality_profile = common.VIDEO_QUALITY_PROFILES[quailtiy_bitrate]
                 except ValueError:
                     quality_profile = 'Original'
+            else:
+                synced_version_profile = ''
+                quality_profile = 'Original'
 
             if stream_details['optimized_version']:
                 source_bitrate = helpers.cast_to_int(source_media_details.get('bitrate'))
@@ -2247,8 +2253,6 @@ class PmsConnect(object):
     def terminate_session(self, session_key='', session_id='', message=''):
         """
         Terminates a streaming session.
-
-        Output: bool
         """
         plex_tv = plextv.PlexTV()
         if not plex_tv.get_plexpass_status():
@@ -2280,8 +2284,8 @@ class PmsConnect(object):
 
         if session_id:
             logger.info("Tautulli Pmsconnect :: Terminating session %s (session_id %s)." % (session_key, session_id))
-            result = self.get_sessions_terminate(session_id=session_id, reason=message)
-            return True
+            response = self.get_sessions_terminate(session_id=session_id, reason=message)
+            return response.ok
         else:
             msg = 'Missing session_id'
             logger.warn("Tautulli Pmsconnect :: Failed to terminate session: %s." % msg)
@@ -2299,6 +2303,8 @@ class PmsConnect(object):
 
         if media_type == 'playlist':
             children_data = self.get_playlist_items(rating_key, output_format='xml')
+        elif media_type == 'collection':
+            children_data = self.get_metadata_children(rating_key, collection=True, output_format='xml')
         elif get_grandchildren:
             children_data = self.get_metadata_grandchildren(rating_key, output_format='xml')
         else:
@@ -2833,8 +2839,15 @@ class PmsConnect(object):
 
         if img:
             web_img = img.startswith('http')
+            resource_img = img.startswith('/:/resources')
 
-            if refresh and not web_img:
+            if 'collection' in img and 'composite' in img:
+                img = img.replace('composite', 'thumb')
+
+            if refresh and not web_img and not resource_img:
+                img_split = img.split('/')
+                if img_split[-1].isdigit():
+                    img = '/'.join(img_split[:-1])
                 img = '{}/{}'.format(img.rstrip('/'), helpers.timestamp())
 
             if web_img:
@@ -3034,13 +3047,13 @@ class PmsConnect(object):
                                 key = int(child_index) if child_index else child_title
                                 children.update({key: {'rating_key': int(child_rating_key)}})
 
-                    key = int(parent_index) if match_type == 'index' else parent_title
+                    key = int(parent_index) if match_type == 'index' else str(parent_title).lower()
                     parents.update({key:
                                     {'rating_key': int(parent_rating_key),
                                      'children': children}
                                     })
 
-        key = 0 if match_type == 'index' else title
+        key = 0 if match_type == 'index' else str(title).lower()
         key_list = {key: {'rating_key': int(rating_key),
                           'children': parents},
                     'section_id': section_id,

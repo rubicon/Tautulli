@@ -713,7 +713,7 @@ class RecentlyAdded(Newsletter):
         while not done:
             recent_items = pms_connect.get_recently_added_details(start=str(start), count='10', media_type=media_type)
             filtered_items = [i for i in recent_items['recently_added']
-                              if self.start_time < helpers.cast_to_int(i['added_at']) < self.end_time]
+                              if self.start_time < helpers.cast_to_int(i['added_at'])]
             if len(filtered_items) < 10:
                 done = True
             else:
@@ -728,7 +728,8 @@ class RecentlyAdded(Newsletter):
                 if item['section_id'] not in self.config['incl_libraries']:
                     continue
 
-                movie_list.append(item)
+                if self.start_time < helpers.cast_to_int(item['added_at']) < self.end_time:
+                    movie_list.append(item)
 
             recently_added = movie_list
 
@@ -754,14 +755,19 @@ class RecentlyAdded(Newsletter):
                 children = pms_connect.get_item_children(show_rating_key, get_grandchildren=True)
                 filtered_children = [i for i in children['children_list']
                                      if self.start_time < helpers.cast_to_int(i['added_at']) < self.end_time]
-                filtered_children.sort(key=lambda x: int(x['parent_media_index']))
+                filtered_children.sort(key=lambda x: helpers.cast_to_int(x['parent_media_index']))
+
+                if not filtered_children:
+                    continue
 
                 seasons = []
-                for k, v in groupby(filtered_children, key=lambda x: x['parent_media_index']):
-                    episodes = list(v)
+                for (index, title), children in groupby(filtered_children,
+                                                        key=lambda x: (x['parent_media_index'], x['parent_title'])):
+                    episodes = list(children)
                     num, num00 = format_group_index([helpers.cast_to_int(d['media_index']) for d in episodes])
 
-                    seasons.append({'media_index': k,
+                    seasons.append({'media_index': index,
+                                    'title': title,
                                     'episode_range': num00,
                                     'episode_count': len(episodes),
                                     'episode': episodes})
@@ -800,6 +806,9 @@ class RecentlyAdded(Newsletter):
                 filtered_children = [i for i in children['children_list']
                                      if self.start_time < helpers.cast_to_int(i['added_at']) < self.end_time]
                 filtered_children.sort(key=lambda x: x['added_at'])
+
+                if not filtered_children:
+                    continue
 
                 albums = []
                 for a in filtered_children:

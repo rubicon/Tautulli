@@ -146,7 +146,7 @@ class API2(object):
             if not self._api_app and self._api_apikey == plexpy.CONFIG.API_KEY:
                 self._api_authenticated = True
 
-            elif self._api_app and self._api_apikey == mobile_app.get_temp_device_token() and \
+            elif self._api_app and mobile_app.get_temp_device_token(self._api_apikey) and \
                     self._api_cmd == 'register_device':
                 self._api_authenticated = True
 
@@ -398,9 +398,9 @@ class API2(object):
 
         return data
 
-    def register_device(self, device_id='', device_name='', friendly_name='', onesignal_id=None,
-                        min_version='', **kwargs):
-        """ Registers the Tautulli Android App for notifications.
+    def register_device(self, device_id='', device_name='', platform=None, version=None,
+                        friendly_name='', onesignal_id=None, min_version='', **kwargs):
+        """ Registers the Tautulli Remote App.
 
             ```
             Required parameters:
@@ -408,6 +408,8 @@ class API2(object):
                 device_name (str):        The device name of the mobile device
 
             Optional parameters:
+                platform (str):           The platform of the mobile devices
+                version (str):            The version of the app
                 friendly_name (str):      A friendly name to identify the mobile device
                 onesignal_id (str):       The OneSignal id for the mobile device
                 min_version (str):        The minimum Tautulli version supported by the mobile device, e.g. v2.5.6
@@ -462,6 +464,8 @@ class API2(object):
         result = mobile_app.add_mobile_device(device_id=device_id,
                                               device_name=device_name,
                                               device_token=self._api_apikey,
+                                              platform=platform,
+                                              version=version,
                                               friendly_name=friendly_name,
                                               onesignal_id=onesignal_id)
 
@@ -469,7 +473,7 @@ class API2(object):
             self._api_msg = 'Device registration successful.'
             self._api_result_type = 'success'
 
-            mobile_app.set_temp_device_token(True)
+            mobile_app.set_temp_device_token(self._api_apikey, success=True)
 
             plex_server = plextv.get_server_resources(return_info=True)
             tautulli = plexpy.get_tautulli_info()
@@ -647,13 +651,7 @@ General optional parameters:
         data = None
         apikey = hashlib.sha224(str(random.getrandbits(256)).encode('utf-8')).hexdigest()[0:32]
         if plexpy.CONFIG.HTTP_USERNAME and plexpy.CONFIG.HTTP_PASSWORD:
-            authenticated = False
-            if plexpy.CONFIG.HTTP_HASHED_PASSWORD and \
-                    username == plexpy.CONFIG.HTTP_USERNAME and check_hash(password, plexpy.CONFIG.HTTP_PASSWORD):
-                authenticated = True
-            elif not plexpy.CONFIG.HTTP_HASHED_PASSWORD and \
-                    username == plexpy.CONFIG.HTTP_USERNAME and password == plexpy.CONFIG.HTTP_PASSWORD:
-                authenticated = True
+            authenticated = username == plexpy.CONFIG.HTTP_USERNAME and check_hash(password, plexpy.CONFIG.HTTP_PASSWORD)
 
             if authenticated:
                 if plexpy.CONFIG.API_KEY:
@@ -759,7 +757,7 @@ General optional parameters:
             if kwargs.get('password'):
                 logger._BLACKLIST_WORDS.add(kwargs['password'])
 
-        result = {}
+        result = None
         logger.api_debug('Tautulli APIv2 :: API called with kwargs: %s' % kwargs)
 
         self._api_validate(**kwargs)
@@ -793,7 +791,7 @@ General optional parameters:
         try:
             if isinstance(result, (dict, list)):
                 ret = result
-            else:
+            elif result is not None:
                 raise Exception
         except Exception:
             try:

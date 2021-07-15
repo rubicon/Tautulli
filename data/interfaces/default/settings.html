@@ -56,7 +56,7 @@
                 <li role="presentation"><a id="nav-tabs-newsletter_agents" href="#tabs-newsletter_agents" aria-controls="tabs-newsletter_agents" role="tab" data-toggle="tab">Newsletter Agents</a></li>
                 <li role="presentation"><a id="nav-tabs-3rd_party_apis" href="#tabs-3rd_party_apis" aria-controls="tabs-3rd_party_apis" role="tab" data-toggle="tab">3rd Party APIs</a></li>
                 <li role="presentation"><a id="nav-tabs-import_backups" href="#tabs-import_backups" aria-controls="tabs-import_backups" role="tab" data-toggle="tab">Import & Backups</a></li>
-                <li role="presentation"><a id="nav-tabs-android_app" href="#tabs-android_app" aria-controls="tabs-android_app" role="tab" data-toggle="tab">Tautulli Remote Android App <sup><small>beta</small></sup></a></li>
+                <li role="presentation"><a id="nav-tabs-remote_app" href="#tabs-remote_app" aria-controls="tabs-remote_app" role="tab" data-toggle="tab">Tautulli Remote App</a></li>
             </ul>
         </div>
         <div class="col-md-9">
@@ -215,12 +215,24 @@
 
                         <div class="checkbox">
                             <label>
-                                <input type="checkbox" id="check_github" name="check_github" value="1" ${config['check_github']}> Enable Updates
+                                <input type="checkbox" id="check_github" name="check_github" value="1" ${config['check_github']}> Check for Tautulli Updates
                             </label>
-                            <p class="help-block">Check for Tautulli updates periodically.</p>
+                            <p class="help-block">Enable to check for Tautulli updates.</p>
                         </div>
                         <div id="git_update_options">
-                            % if not plexpy.SNAP and not (plexpy.FROZEN and common.PLATFORM == 'Darwin'):
+                            <div class="form-group">
+                                <label for="check_github_interval">Update Check Interval</label>
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        <input type="text" class="form-control" data-parsley-type="integer" id="check_github_interval" name="check_github_interval" value="${config['check_github_interval']}" size="3" data-parsley-min="1" data-parsley-trigger="change" data-parsley-errors-container="#check_github_interval_error" required>
+                                    </div>
+                                    <div id="check_github_interval_error" class="alert alert-danger settings-alert" role="alert"></div>
+                                </div>
+                                <p class="help-block">
+                                    The interval (in hours) Tautulli will check for a new update. Minimum 1, default 6.
+                                </p>
+                            </div>
+                            % if not plexpy.SNAP and not plexpy.FROZEN:
                             <div class="checkbox">
                                 <label>
                                     <input type="checkbox" id="plexpy_auto_update" name="plexpy_auto_update" value="1" ${config['plexpy_auto_update']} ${docker_setting}> Update Automatically ${docker_msg | n}
@@ -228,11 +240,25 @@
                                 <p class="help-block">Update Tautulli automatically if an update is available.</p>
                             </div>
                             % endif
+                            <div class="checkbox advanced-setting">
+                                <label>
+                                    <input type="checkbox" name="notify_plexpy_update_repeat" id="notify_plexpy_update_repeat" value="1" ${config['notify_plexpy_update_repeat']}> Repeat Tautulli Update Notifications
+                                </label>
+                                <p class="help-block">
+                                    Enable to allow Tautulli to send repeat update notifications everytime it checks for updates.
+                                    Disable to only send one notifications for each Tautulli version.
+                                </p>
+                            </div>
                             <div class="form-group advanced-setting">
                                 <label for="git_token">GitHub API Token</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="git_token" name="git_token" value="${config['git_token']}" data-parsley-trigger="change">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="git_token" name="git_token" value="${config['git_token']}" data-parsley-trigger="change">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">Optional: Use your own GitHub API token when checking for updates.
@@ -406,6 +432,12 @@
                                         <li class="card card-sortable">
                                             <div class="card-handle"><i class="fa fa-bars"></i></div>
                                             <label>
+                                                <input type="checkbox" id="hscard-top_libraries" name="hscard-top_libraries" value="top_libraries"> Most Active Libraries
+                                            </label>
+                                        </li>
+                                        <li class="card card-sortable">
+                                            <div class="card-handle"><i class="fa fa-bars"></i></div>
+                                            <label>
                                                 <input type="checkbox" id="hscard-top_users" name="hscard-top_users" value="top_users"> Most Active User
                                             </label>
                                         </li>
@@ -483,15 +515,6 @@
                                 <input type="checkbox" name="launch_browser" id="launch_browser" value="1" ${config['launch_browser']}> Launch Browser on Startup
                             </label>
                             <p class="help-block">Launch browser pointed to Tautulli on startup.</p>
-                        </div>
-                        <div class="form-group advanced-setting">
-                            <label for="http_host">HTTP Host</label> ${docker_msg | n}
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <input type="text" class="form-control http-settings" id="http_host" name="http_host" value="${config['http_host']}" data-parsley-trigger="change" required ${docker_setting}>
-                                </div>
-                            </div>
-                            <p class="help-block">localhost or an IP address to bind the web server to. Default 0.0.0.0 to bind to all interfaces.</p>
                         </div>
                         <div class="form-group">
                             <label for="http_port">HTTP Port</label> ${docker_msg | n}
@@ -637,25 +660,8 @@
                                 <div class="col-md-4">
                                     <input type="password" class="form-control auth-settings" id="http_password" name="http_password" value="${config['http_password']}" size="30" autocomplete="new-password">
                                 </div>
-                                <div id="http_hash_password_error" class="alert alert-danger settings-alert" role="alert"></div>
                             </div>
                             <p class="help-block">Password for web server authentication. Leave empty to disable.</p>
-                        </div>
-
-                        <div class="checkbox advanced-setting">
-                            <label>
-                                <input type="checkbox" name="http_hash_password" id="http_hash_password" value="1" ${config['http_hash_password']} data-parsley-trigger="change"> Hash Password in the Config File
-                            </label>
-                            <span id="hashPasswordCheck" class="settings-warning"></span>
-                            <p class="help-block">Store a hashed password in the config file.<br />Warning: Your password cannot be recovered if forgotten!</p>
-                        </div>
-                        <input type="text" id="http_hashed_password" name="http_hashed_password" value="${config['http_hashed_password']}" style="display: none;" data-parsley-trigger="change" data-parsley-type="integer" data-parsley-range="[0, 1]"
-                               data-parsley-errors-container="#http_hash_password_error" data-parsley-error-message="Cannot un-hash password, please set a new password." data-parsley-no-focus required>
-                        <div class="checkbox advanced-setting">
-                            <label>
-                                <input type="checkbox" class="auth-settings" name="http_basic_auth" id="http_basic_auth" value="1" ${config['http_basic_auth']} data-parsley-trigger="change"> Use Basic Authentication
-                            </label>
-                            <p class="help-block">Use basic HTTP authentication instead of the HTML login form.</p>
                         </div>
 
                         <input type="checkbox" name="auth_changed" id="auth_changed" value="1" style="display: none;">
@@ -683,7 +689,7 @@
                             <label>
                                 <input type="checkbox" id="api_enabled" name="api_enabled" value="1" ${config['api_enabled']}> Enable API
                             </label>
-                            <p class="help-block">Allow remote applications to interface with Tautulli.</p>
+                            <p class="help-block">Allow external applications to interface with Tautulli.</p>
                         </div>
                         <div id="apioptions">
                             <div class="form-group">
@@ -691,14 +697,17 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="input-group">
-                                            <input class="form-control" type="text" name="api_key" id="api_key" value="${config['api_key']}" size="20" readonly>
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" name="api_key" id="api_key" value="${config['api_key']}" size="20" readonly>
                                             <span class="input-group-btn">
                                                 <button class="btn btn-form" type="button" id="generate_api">Generate</button>
                                             </span>
                                         </div>
                                     </div>
                                 </div>
-                                <p class="help-block">Current API key: <strong>${config['api_key']}</strong></p>
+                                <p class="help-block">API key used to access the Tautulli API.</p>
                             </div>
                         </div>
 
@@ -750,17 +759,17 @@
                         </div>
                         <div class="checkbox">
                             <label>
+                                <input type="checkbox" id="pms_ssl_checkbox" class="checkbox-toggle pms-settings" data-id="pms_ssl" value="1" ${checked(config['pms_ssl'])}> Use Secure Connection
+                                <input type="hidden" id="pms_ssl" name="pms_ssl" value="${config['pms_ssl']}">
+                            </label>
+                            <p class="help-block">Connect to your Plex server using HTTPS if you have <a href="${anon_url('https://support.plex.tv/articles/206225077-how-to-use-secure-server-connections')}" target="_blank" rel="noreferrer">secure connections</a> enabled.</p>
+                        </div>
+                        <div class="checkbox">
+                            <label>
                                 <input type="checkbox" id="pms_is_remote_checkbox" class="checkbox-toggle pms-settings" data-id="pms_is_remote" value="1" ${checked(config['pms_is_remote'])}> Remote Server
                                 <input type="hidden" id="pms_is_remote" name="pms_is_remote" value="${config['pms_is_remote']}">
                             </label>
                             <p class="help-block">Check this if your Plex Server is not on the same local network as Tautulli.</p>
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="pms_ssl_checkbox" class="checkbox-toggle pms-settings" data-id="pms_ssl" value="1" ${checked(config['pms_ssl'])}> Use SSL
-                                <input type="hidden" id="pms_ssl" name="pms_ssl" value="${config['pms_ssl']}">
-                            </label>
-                            <p class="help-block">If you have secure connections enabled on your Plex Server, communicate with it securely.</p>
                         </div>
                         <div class="form-group">
                             <label for="pms_url">Plex Server URL</label>
@@ -777,7 +786,12 @@
                             <label for="pms_url">Plex Server Identifier</label>
                             <div class="row">
                                 <div class="col-md-6">
-                                    <input type="text" class="form-control" id="pms_identifier" name="pms_identifier" value="${config['pms_identifier']}" size="30" readonly>
+                                    <div class="input-group">
+                                        <span class="input-group-btn">
+                                            <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                        </span>
+                                        <input type="password" class="form-control" id="pms_identifier" name="pms_identifier" value="${config['pms_identifier']}" size="30" readonly>
+                                    </div>
                                 </div>
                             </div>
                             <p class="help-block">
@@ -870,7 +884,7 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label for="pms_update_check_interval">Update Check Interval</label>
+                                <label for="pms_update_check_interval">Plex Update Check Interval</label>
                                 <div class="row">
                                     <div class="col-md-2">
                                         <input type="text" class="form-control" data-parsley-type="integer" id="pms_update_check_interval" name="pms_update_check_interval" value="${config['pms_update_check_interval']}" size="3" data-parsley-min="1" data-parsley-trigger="change" data-parsley-errors-container="#pms_update_check_interval_error" required>
@@ -879,6 +893,15 @@
                                 </div>
                                 <p class="help-block">
                                     The interval (in hours) Tautulli will check for a new Plex Media Server update. Minimum 1, default 24.
+                                </p>
+                            </div>
+                            <div class="checkbox advanced-setting">
+                                <label>
+                                    <input type="checkbox" name="notify_server_update_repeat" id="notify_server_update_repeat" value="1" ${config['notify_server_update_repeat']}> Repeat Plex Server Update Notifications
+                                </label>
+                                <p class="help-block">
+                                    Enable to allow Tautulli to send repeat Plex server update notifications everytime it checks for updates.
+                                    Disable to only send one notifications for each Plex server version.
                                 </p>
                             </div>
                         </div>
@@ -926,7 +949,10 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="input-group">
-                                        <input type="text" class="form-control" id="pms_token" name="pms_token" value="${config['pms_token']}" data-parsley-trigger="change" data-parsley-errors-container="#pms_token_error" required>
+                                        <span class="input-group-btn">
+                                            <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                        </span>
+                                        <input type="password" class="form-control" id="pms_token" name="pms_token" value="${config['pms_token']}" data-parsley-trigger="change" data-parsley-errors-container="#pms_token_error" required readonly>
                                         <span class="input-group-btn">
                                             <button id="sign-in-plex" class="btn btn-form" type="button">Fetch Token</button>
                                         </span>
@@ -1084,9 +1110,19 @@
                         </div>-->
 
                         <div class="padded-header">
-                            <h3>Remote Access Notifications</h3>
+                            <h3>Server Notifications</h3>
                         </div>
 
+                        <div class="form-group">
+                            <label for="notify_server_connection_threshold">Plex Server Down Threshold</label>
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <input type="text" class="form-control" data-parsley-type="integer" id="notify_server_connection_threshold" name="notify_server_connection_threshold" value="${config['notify_server_connection_threshold']}" size="5" data-parsley-min="60" data-parsley-trigger="change" data-parsley-errors-container="#notify_server_connection_threshold_error" required>
+                                </div>
+                                <div id="notify_server_connection_threshold_error" class="alert alert-danger settings-alert" role="alert"></div>
+                            </div>
+                            <p class="help-block">The duration (in seconds) for the Plex server to be down before sending a notification. Minimum 60, default 60.</p>
+                        </div>
                         <div class="form-group">
                             <label for="notify_remote_access_threshold">Remote Access Down Threshold</label>
                             <div class="row">
@@ -1108,7 +1144,7 @@
                             </label>
                             <p class="help-block">Enable to host newsletters on your own domain. This will generate a link to an HTML page where you can view the newsletter.</p>
                         </div>
-                        <div id="self_host_newsletter_options" style="overlfow: hidden; display: ${'block' if config['newsletter_self_hosted'] == 'checked' else 'none'}">
+                        <div id="self_host_newsletter_options" style="overflow: hidden; display: ${'block' if config['newsletter_self_hosted'] == 'checked' else 'none'}">
                             <div class="form-group">
                                 <p class="help-block" id="self_host_newsletter_message">
                                     Note: The <span class="inline-pre">${http_root}newsletter</span> endpoint on your domain must be publicly accessible from the internet.
@@ -1133,7 +1169,12 @@
                                 <label for="newsletter_password">Newsletter Password</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="newsletter_password" name="newsletter_password" value="${config['newsletter_password']}">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="newsletter_password" name="newsletter_password" value="${config['newsletter_password']}">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">Enter the password that will be required to view self-hosted newsletters.</p>
@@ -1192,7 +1233,7 @@
                             Add a new notification agent, or configure an existing notification agent by clicking the settings icon on the right.
                         </p>
                         <p class="help-block">
-                            Please see the <a href="${anon_url('https://github.com/%s/%s-Wiki/wiki/Notification-Agents-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">Notification Agents Guide</a> for instructions on setting up each notification agent.
+                            Please see the <a href="${anon_url('https://github.com/%s/%s/wiki/Notification-Agents-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">Notification Agents Guide</a> for instructions on setting up each notification agent.
                         </p>
                         <br />
                         <div id="plexpy-notifiers-table">
@@ -1251,10 +1292,10 @@
                             </div>
                             <p class="help-block">Select where to host Plex images for notifications and newsletters.</p>
                         </div>
-                        <div id="imgur_upload_options" style="overlfow: hidden; display: ${'none' if config['notify_upload_posters'] != 1 else 'block'}">
+                        <div id="imgur_upload_options" style="overflow: hidden; display: ${'none' if config['notify_upload_posters'] != 1 else 'block'}">
                             <div class="form-group">
                                 <p class="help-block">
-                                    Please see the <a href="${anon_url('https://github.com/%s/%s-Wiki/wiki/3rd-Party-APIs-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">3rd Party APIs Guide</a> for instructions on setting up Imgur.<br>
+                                    Please see the <a href="${anon_url('https://github.com/%s/%s/wiki/3rd-Party-APIs-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">3rd Party APIs Guide</a> for instructions on setting up Imgur.<br>
                                     Warning: Imgur uploads are rate-limited and newsletters may exceed the limit. Please use Cloudinary for newsletters instead.
                                 </p>
                             </div>
@@ -1262,29 +1303,39 @@
                                 <label for="imgur_client_id">Imgur Client ID</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="imgur_client_id" name="imgur_client_id" value="${config['imgur_client_id']}" data-parsley-trigger="change">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="imgur_client_id" name="imgur_client_id" value="${config['imgur_client_id']}" data-parsley-trigger="change">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">Enter your Imgur API Client ID.</p>
                             </div>
                         </div>
-                        <div id="self_host_image_options" style="overlfow: hidden; display: ${'none' if config['notify_upload_posters'] != 2 else 'block'}">
+                        <div id="self_host_image_options" style="overflow: hidden; display: ${'none' if config['notify_upload_posters'] != 2 else 'block'}">
                             <div class="form-group">
                                 <p class="help-block" id="self_host_image_message">Note: The <span class="inline-pre">${http_root}image</span> endpoint on your domain must be publicly accessible from the internet.</p>
                                 <p class="help-block settings-warning base-url-warning">Warning: Public Tautulli domain not set under <a data-tab-destination="web_interface" data-target="http_base_url">Web Interface</a>.</p>
                             </div>
                         </div>
-                        <div id="cloudinary_upload_options" style="overlfow: hidden; display: ${'none' if config['notify_upload_posters'] != 3 else 'block'}">
+                        <div id="cloudinary_upload_options" style="overflow: hidden; display: ${'none' if config['notify_upload_posters'] != 3 else 'block'}">
                             <div class="form-group">
                                 <p class="help-block">
-                                    Please see the <a href="${anon_url('https://github.com/%s/%s-Wiki/wiki/3rd-Party-APIs-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">3rd Party APIs Guide</a> for instructions on setting up Cloudinary.
+                                    Please see the <a href="${anon_url('https://github.com/%s/%s/wiki/3rd-Party-APIs-Guide' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">3rd Party APIs Guide</a> for instructions on setting up Cloudinary.
                                 </p>
                             </div>
                             <div class="form-group">
                                 <label for="cloudinary_cloud_name">Cloudinary Cloud Name</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="cloudinary_cloud_name" name="cloudinary_cloud_name" value="${config['cloudinary_cloud_name']}" data-parsley-trigger="change">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="cloudinary_cloud_name" name="cloudinary_cloud_name" value="${config['cloudinary_cloud_name']}" data-parsley-trigger="change">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">
@@ -1295,7 +1346,12 @@
                                 <label for="cloudinary_api_key">Cloudinary API Key</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="cloudinary_api_key" name="cloudinary_api_key" value="${config['cloudinary_api_key']}" data-parsley-trigger="change">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="cloudinary_api_key" name="cloudinary_api_key" value="${config['cloudinary_api_key']}" data-parsley-trigger="change">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">
@@ -1306,7 +1362,12 @@
                                 <label for="cloudinary_api_secret">Cloudinary API Secret</label>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <input type="text" class="form-control" id="cloudinary_api_secret" name="cloudinary_api_secret" value="${config['cloudinary_api_secret']}" data-parsley-trigger="change">
+                                        <div class="input-group">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-form reveal-token" type="button"><i class="fa fa-eye-slash"></i></button>
+                                            </span>
+                                            <input type="password" class="form-control" id="cloudinary_api_secret" name="cloudinary_api_secret" value="${config['cloudinary_api_secret']}" data-parsley-trigger="change">
+                                        </div>
                                     </div>
                                 </div>
                                 <p class="help-block">
@@ -1430,9 +1491,6 @@
                                             <button class="btn btn-form" type="button" id="log_dir_browse" data-toggle="browse" data-filter=".folderonly" data-target="#log_dir" ${docker_setting}>Browse</button>
                                         </span>
                                     </div>
-                                    <div class="btn-group">
-                                        <button class="btn btn-form" type="button" id="clear_logs">Clear Logs</button>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1491,20 +1549,36 @@
 
                     </div>
 
-                    <div role="tabpanel" class="tab-pane" id="tabs-android_app">
+                    <div role="tabpanel" class="tab-pane" id="tabs-remote_app">
 
                         <div class="padded-header">
-                            <h3>Tautulli Remote Android App</h3>
+                            <h3>Tautulli Remote App</h3>
                         </div>
 
                         <div class="form-group">
                             <label>Get the App</label>
                             <p class="help-block">
-                                Get the <a href="${anon_url('https://play.google.com/store/apps/details?id=com.williamcomartin.plexpyremote')}" target="_blank" rel="noreferrer">Tautulli Remote</a> app on Google Play<sup>TM</sup> to access Tautulli from your Android device!<br />
-                                <span class="google-play-badge">
-                                    <a href="${anon_url('https://play.google.com/store/apps/details?id=com.williamcomartin.plexpyremote')}" target="_blank" rel="noreferrer"><img alt="Get it on Google Play" src="images/en-play-badge.png" /></a>
+                                Get the Tautulli Remote app on
+                                <a href="${anon_url('https://play.google.com/store/apps/details?id=com.tautulli.tautulli_remote')}" target="_blank" rel="noreferrer">Google Play</a>
+                                to access Tautulli from your mobile device,
+                                or beta test for iOS on
+                                <a href="${anon_url('https://testflight.apple.com/join/G29OmIm1')}" target="_blank" rel="noreferrer">TestFlight</a>.
+                                <br />
+                            </p>
+                            <p class="help-block">
+                                <span class="app-badge">
+                                    <a href="${anon_url('https://play.google.com/store/apps/details?id=com.tautulli.tautulli_remote')}" target="_blank" rel="noreferrer"><img alt="Get it on Google Play" src="images/google-play-badge.svg" /></a>
+                                </span>
+                                <span class="app-badge">
+                                    <a href="${anon_url('https://testflight.apple.com/join/G29OmIm1')}" target="_blank" rel="noreferrer"><img alt="Download on TestFlight" src="images/testflight-badge.png" /></a>
+                                </span>
+                                <span class="app-badge">
+                                    <small>Google Play and the Google Play logo are trademarks of Google LLC.</small>
+                                    <br>
+                                    <small>Apple and the Apple Logo are trademarks of Apple Inc.</small>
                                 </span>
                             </p>
+                            <br style="clear: both">
                         </div>
                         <div class="form-group">
                             <label>Registered Devices</label>
@@ -1525,6 +1599,10 @@
         </div>
     </div>
 </div>
+<div id="token_error_bar" style="display: none;">
+    <i class="fa fa-exclamation-triangle"></i> Your Plex.tv token is no longer valid.<br>
+    Please <a data-tab-destination="plex_media_server" data-target="pms_token">fetch a new token</a>.
+</div>
 </%def>
 
 <%def name="modalIncludes()">
@@ -1538,7 +1616,7 @@
             </div>
             <div class="modal-body">
                 <div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
-                    <strong>Please read the <a href="${anon_url('https://github.com/%s/%s-Issues/blob/master/README.md' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">guidelines</a>
+                    <strong>Please read the <a href="${anon_url('https://github.com/%s/%s/blob/master/README.md' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">guidelines</a>
                         in the README document <br />before submitting a new <span id="guidelines-type"></span>!</strong>
                     <br /><br />
                     Your post may be removed for failure to follow the guidelines.
@@ -1560,7 +1638,7 @@
             </div>
             <div class="modal-body">
                 <div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
-                    <strong>Please read the <a href="${anon_url('https://github.com/%s/%s-Wiki/wiki/Frequently-Asked-Questions' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">FAQ</a>
+                    <strong>Please read the <a href="${anon_url('https://github.com/%s/%s/wiki/Frequently-Asked-Questions' % (plexpy.CONFIG.GIT_USER, plexpy.CONFIG.GIT_REPO))}" target="_blank" rel="noreferrer">FAQ</a>
                         before asking for help!</strong>
                 </div>
             </div>
@@ -1831,6 +1909,32 @@ Rating: {rating}/10   --> Rating: /10
 {Rating: &lt;rating&gt;/10} --> </pre>
                     </div>
                     <div>
+                        <h4>Expressions</h4>
+                    </div>
+                    <div style="padding-bottom: 10px;">
+                        <p class="help-block">
+                            Note: <span class="inline-pre">notify_text_eval = 1</span> must be manually enabled in the configuration file to enable expressions.
+                            Enabling this setting could pose a security risk. Enable at your own risk. It is recommended to leave this feature disabled if it is not being used.
+                        </p>
+                        <p class="help-block">
+                            Notification parameters can be wrapped with backticks <span class="inline-pre">`expr`</span> to be evaluated as Python expressions.
+                            Only the following functions are supported in expressions:
+                        </p>
+                        <ul class="help-block">
+                            <li><span class="inline-pre">bool(x)</span></li>
+                            <li><span class="inline-pre">divmod(a, b)</span></li>
+                            <li><span class="inline-pre">float(x)</span></li>
+                            <li><span class="inline-pre">int(x)</span></li>
+                            <li><span class="inline-pre">len(s)</span></li>
+                            <li><span class="inline-pre">round(n[, ndigits])</span></li>
+                            <li><span class="inline-pre">str(x)</span></li>
+                        </ul>
+                        <p><strong style="color: #fff;">Example:</strong></p>
+                        <pre>{`float(rating) * 10`>%}                           --> 89%
+{`"%d hr %d min" % divmod(int(duration), 60)`}     --> 1 hr 50 min
+{`round(float(stream_bandwidth) / 1000, 1)`> Mbps} --> 6.9 Mbps</pre>
+                    </div>
+                    <div>
                         <h4>Combined</h4>
                     </div>
                     <div>
@@ -1839,6 +1943,7 @@ Rating: {rating}/10   --> Rating: /10
                         </p>
                         <ol class="help-block">
                             <li>Prefix</li>
+                            <li>Evaluation</li>
                             <li>Parameter</li>
                             <li>Case Modifier</li>
                             <li>List Slicing</li>
@@ -1941,12 +2046,12 @@ Rating: {rating}/10   --> Rating: /10
         <div class="modal-content">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true"><i class="fa fa-remove"></i></button>
-                <h4 class="modal-title">Register Tautulli Android App</h4>
+                <h4 class="modal-title">Register Tautulli Remote App</h4>
             </div>
             <div class="modal-body">
                 <label>Instructions</label>
                 <p class="help-block">
-                    Scan the QR code below with the Tautulli Android app to automatically register it with the server (make sure the Tautulli Address below is correct)
+                    Scan the QR code below with the Tautulli Remote app to automatically register it with the server (make sure the Tautulli Address below is correct)
                     or manually enter the connection info and device token into the app settings. This window will automatically close once device registration is successful.
                 </p>
                 <p class="help-block">
@@ -2207,7 +2312,6 @@ $(document).ready(function() {
         if (authChanged || httpChanged || directoryChanged) {
           $('#restart-modal').modal('show');
         }
-        $("#http_hashed_password").val($("#http_hash_password").is(":checked") ? 1 : 0);
         getConfigurationTable();
         getSchedulerTable();
         getNotifiersTable();
@@ -2215,6 +2319,7 @@ $(document).ready(function() {
         getMobileDevicesTable();
         loadUpdateDistros();
         setBaseURLSuffix();
+        toggleRevealTokens();
         settingsChanged = false;
     }
 
@@ -2340,12 +2445,6 @@ $(document).ready(function() {
     $("#clear_exports").click(function () {
         var msg = 'Are you sure you want to clear the Tautulli metadata exports?';
         var url = 'delete_export?delete_all=true';
-        confirmAjaxCall(url, msg);
-    });
-
-    $("#clear_logs").click(function () {
-        var msg = 'Are you sure you want to clear the Tautulli logs?';
-        var url = 'delete_logs';
         confirmAjaxCall(url, msg);
     });
 
@@ -2615,12 +2714,28 @@ $(document).ready(function() {
         window.open(pms_web_url, '_blank');
     });
 
+    $.ajax({
+        url: "https://plex.tv/api/resources",
+        type: 'GET',
+        dataType: 'json',
+        beforeSend: function (xhr) {
+            xhr.setRequestHeader('X-Plex-Token', $('#pms_token').val());
+        },
+        statusCode: {
+            401: function (xhr, status) {
+                $("#updatebar").hide();
+                $("#token_error_bar").show();
+            }
+        }
+    });
+
     function OAuthPreFunction() {
         $("#token_verify").html('<i class="fa fa-refresh fa-spin"></i>').fadeIn('fast');
     }
     function OAuthSuccessCallback(authToken) {
         $("#pms_token").val(authToken);
         $("#token_verify").html('<i class="fa fa-check"></i>').fadeIn('fast');
+        $('#token_error_bar').hide();
         getServerOptions(authToken);
     }
     function OAuthErrorCallback() {
@@ -2759,10 +2874,7 @@ $(document).ready(function() {
     });
 
     function allowPlexAdminCheck () {
-        if ($("#http_basic_auth").is(":checked")) {
-            $("#http_plex_admin").attr("checked", false).attr("disabled", true);
-            $("#allowPlexCheck").html("Plex admin login cannot be enabled with basic authentication.");
-        } else if ($('#http_username').val() == '' || $('#http_password').val() == '') {
+        if ($('#http_username').val() == '' || $('#http_password').val() == '') {
             $("#http_plex_admin").attr("checked", false).attr("disabled", true);
             $("#allowPlexCheck").html("You must set an admin username and password above to allow Plex admin login.");
         } else {
@@ -2772,15 +2884,12 @@ $(document).ready(function() {
     }
     allowPlexAdminCheck();
 
-    $('#http_username, #http_password, #http_basic_auth').change(function () {
+    $('#http_username, #http_password').change(function () {
         allowPlexAdminCheck();
     });
 
     function allowGuestAccessCheck () {
-        if ($("#http_basic_auth").is(":checked")) {
-            $("#allow_guest_access").attr("checked", false).attr("disabled", true);
-            $("#allowGuestCheck").html("Guest access cannot be enabled with basic authentication.");
-        } else if ($('#http_username').val() == '' || $('#http_password').val() == '') {
+        if ($('#http_username').val() == '' || $('#http_password').val() == '') {
             $("#allow_guest_access").attr("checked", false).attr("disabled", true);
             $("#allowGuestCheck").html("You must set an admin username and password above to allow guest access.");
         } else {
@@ -2791,34 +2900,8 @@ $(document).ready(function() {
     }
     allowGuestAccessCheck();
 
-    $('#http_username, #http_password, #http_basic_auth').change(function () {
+    $('#http_username, #http_password').change(function () {
         allowGuestAccessCheck();
-    });
-
-    function hashPasswordCheck () {
-        if ($("#http_basic_auth").is(":checked")) {
-            $("#http_hash_password").attr("checked", false).attr("disabled", true);
-            $("#hashPasswordCheck").html("Password cannot be hashed with basic authentication.");
-        } else {
-            $("#http_hash_password").attr("disabled", false);
-            $("#hashPasswordCheck").html("");
-        }
-        if (!($("#http_hash_password").is(":checked")) && $("#http_hashed_password").val() == "1" && $("#http_password").val() == "    ") {
-            $("#http_hashed_password").val(-1);
-        } else if ($("#http_hash_password").is(":checked") && $("#http_hashed_password").val() == "-1" && $("#http_password").val() == "    ") {
-            $("#http_hashed_password").val(1);
-            $("#http_hash_password_error").html("");
-        }
-    }
-    hashPasswordCheck();
-
-    $('#http_password, #http_hash_password, #http_basic_auth').change(function () {
-        hashPasswordCheck();
-    });
-
-    $('#http_password').change(function () {
-        $("#http_hashed_password").val($("#http_hash_password").is(":checked") ? 1 : 0);
-        $("#http_hash_password_error").html("");
     });
 
     // Load PMS downloads
@@ -3012,6 +3095,8 @@ $(document).ready(function() {
     });
 
     function baseURLSet() {
+        var base_url = $('#http_base_url');
+        base_url.val(base_url.val().replace(/\/+$/g, ''));
         if ($('#http_base_url').val()) {
             $('.base-url-warning').hide();
         } else {
@@ -3126,13 +3211,15 @@ $(document).ready(function() {
         }
     });
 
-    $("body").on('click', '[data-toggle=browse]', function () {
+    $('body').on('click', '[data-toggle=browse]', function () {
         var filter = $(this).data('filter');
         var target = $(this).data('target');
         var path = $(target).val();
         var description = $(this).data('description') || $("label[for='" + target.replace('#', '') + "']").text();
         openBrowsePath(null, path, filter, description, target);
     });
+
+    toggleRevealTokens();
 });
 </script>
 </%def>

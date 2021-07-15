@@ -257,6 +257,7 @@ media_info_table_options = {
         $('body').popover({
             selector: '[data-toggle="popover"]',
             html: true,
+            sanitize: false,
             container: 'body',
             trigger: 'hover',
             placement: 'right',
@@ -381,6 +382,7 @@ function childTableOptionsMedia(rowData) {
         $('.media-type-tooltip').tooltip();
         $('.thumb-tooltip').popover({
             html: true,
+            sanitize: false,
             container: 'body',
             trigger: 'hover',
             placement: 'right',

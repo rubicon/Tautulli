@@ -44,7 +44,7 @@ class Settings(PlexObject):
 
     def all(self):
         """ Returns a list of all :class:`~plexapi.settings.Setting` objects available. """
-        return list(v for id, v in sorted(self._settings.items()))
+        return [v for id, v in sorted(self._settings.items())]
 
     def get(self, id):
         """ Return the :class:`~plexapi.settings.Setting` object with the specified id. """
@@ -102,7 +102,7 @@ class Setting(PlexObject):
             group (str): Group name this setting is categorized as.
             enumValues (list,dict): List or dictionary of valis values for this setting.
     """
-    _bool_cast = lambda x: True if x == 'true' or x == '1' else False
+    _bool_cast = lambda x: bool(x == 'true' or x == '1')
     _bool_str = lambda x: str(x).lower()
     TYPES = {
         'bool': {'type': bool, 'cast': _bool_cast, 'tostr': _bool_str},
@@ -164,10 +164,10 @@ class Preferences(Setting):
     """ Represents a single Preferences.
 
         Attributes:
-            TAG (str): 'Preferences'
+            TAG (str): 'Setting'
             FILTER (str): 'preferences'
     """
-    TAG = 'Preferences'
+    TAG = 'Setting'
     FILTER = 'preferences'
 
     def _default(self):

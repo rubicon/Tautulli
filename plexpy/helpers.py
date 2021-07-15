@@ -172,14 +172,25 @@ def convert_milliseconds(ms):
     return minutes
 
 
-def convert_milliseconds_to_minutes(ms):
+def convert_milliseconds_to_seconds(ms):
+    if str(ms).isdigit():
+        seconds = float(ms) / 1000
+        return math.trunc(seconds)
+    return 0
 
+
+def convert_milliseconds_to_minutes(ms):
     if str(ms).isdigit():
         seconds = float(ms) / 1000
         minutes = round(seconds / 60, 0)
-
         return math.trunc(minutes)
+    return 0
 
+
+def seconds_to_minutes(s):
+    if str(s).isdigit():
+        minutes = round(s / 60, 0)
+        return math.trunc(minutes)
     return 0
 
 
@@ -408,6 +419,10 @@ def clean_filename(filename, replace='_'):
     return cleaned_filename
 
 
+def split_strip(s, delimiter=','):
+    return [x.strip() for x in str(s).split(delimiter) if x.strip()]
+
+
 def split_path(f):
     """
     Split a path into components, starting with the drive letter (if any). Given
@@ -511,6 +526,27 @@ def cast_to_int(s):
 def cast_to_float(s):
     try:
         return float(s)
+    except (ValueError, TypeError):
+        return 0
+
+
+def helper_divmod(a, b):
+    try:
+        return divmod(a, b)
+    except (ValueError, TypeError):
+        return 0
+
+
+def helper_len(s):
+    try:
+        return len(s)
+    except (ValueError, TypeError):
+        return 0
+
+
+def helper_round(n, ndigits=None):
+    try:
+        return round(n, ndigits)
     except (ValueError, TypeError):
         return 0
 
@@ -1260,6 +1296,8 @@ def sort_obj(obj):
                         result_end.append([k, sort_obj(v)])
                     else:
                         result_start.append([k, sort_obj(v)])
+                if not v:
+                    result_end.append([k, v])
             else:
                 result_start.append([k, sort_obj(v)])
 
@@ -1295,7 +1333,7 @@ def get_attrs_to_dict(obj, attrs):
                 value = getattr(value, sub, None)
         elif isinstance(sub, dict):
             if isinstance(value, list):
-                value = [get_attrs_to_dict(o, sub) for o in value]
+                value = [get_attrs_to_dict(o, sub) for o in value] or [get_attrs_to_dict({}, sub)]
             else:
                 value = get_attrs_to_dict(value, sub)
         elif callable(sub):
@@ -1660,3 +1698,9 @@ def delete_file(file_path):
     except OSError:
         logger.error("Tautulli Helpers :: Failed to delete file: %s", file_path)
         return False
+
+
+def short_season(title):
+    if title.startswith('Season ') and title[7:].isdigit():
+        return 'S%s' % title[7:]
+    return title
